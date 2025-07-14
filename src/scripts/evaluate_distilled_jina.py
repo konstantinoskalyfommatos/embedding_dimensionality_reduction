@@ -2,7 +2,7 @@ from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 from transformers import AutoTokenizer
 import torch
-from src.scripts.distil_jina_v2 import DistilledJina
+from src.scripts.distil_jina_v2 import DistilledModel
 import os
 from utils.datasets.datasets_info import get_dataset_max_length
 
@@ -16,7 +16,7 @@ tokenizer = AutoTokenizer.from_pretrained("jinaai/jina-embeddings-v2-small-en", 
 backbone_model.max_seq_length = get_dataset_max_length("cl-nagoya/wikisplit-pp", tokenizer)
 
 LOW_DIM_SIZE = 256
-distilled_model = DistilledJina(backbone_model, low_dim_size=LOW_DIM_SIZE)
+distilled_model = DistilledModel(backbone_model, low_dim_size=LOW_DIM_SIZE)
 
 # Check if trained model exists and load it
 distilled_model_path = "models/distilled_jina_v2.pth"
@@ -89,3 +89,4 @@ with torch.no_grad():
         print(f"  Distilled model norm: {distilled_norms[i].item():.4f}")
         print(f"  Backbone model norm: {backbone_norms[i].item():.4f}")
         print()
+        

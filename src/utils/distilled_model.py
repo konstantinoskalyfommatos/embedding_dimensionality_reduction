@@ -8,7 +8,7 @@ from torch.nn.functional import cosine_similarity as cos_sim
 from utils.embed_functions import embed_points_isometric
 
 
-class DistilledJina(nn.Module):
+class DistilledModel(nn.Module):
     def __init__(
         self, 
         backbone_model,
@@ -18,7 +18,7 @@ class DistilledJina(nn.Module):
         finetune_backbone=False,
         device="cuda"
     ):
-        super(DistilledJina, self).__init__()
+        super(DistilledModel, self).__init__()
         self.student_backbone = backbone_model
         self.teacher_backbone = copy.deepcopy(backbone_model)
         self.low_dim_size = low_dim_size
@@ -85,3 +85,4 @@ class DistilledJina(nn.Module):
         total_loss = alpha * loss_position + (1 - alpha) * loss_similarity
         
         return total_loss
+    

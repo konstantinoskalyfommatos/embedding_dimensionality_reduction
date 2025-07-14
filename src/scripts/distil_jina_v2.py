@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 import os
 from dotenv import load_dotenv
 
-from utils.distilled_model import DistilledJina
+from utils.distilled_model import DistilledModel
 from utils.datasets.wikisplit_dataset import WikisplitDataset
 from utils.datasets.datasets_info import get_dataset_max_length
 from utils.train import train_model
@@ -38,7 +38,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained('jinaai/jina-embeddings-v2-small-en', trust_remote_code=True)
     encoder.max_seq_length = get_dataset_max_length("cl-nagoya/wikisplit-pp", tokenizer)
 
-    distilled_model = DistilledJina(
+    distilled_model = DistilledModel(
         encoder, 
         low_dim_size=LOW_DIM_SIZE,
         hidden_size=368,
