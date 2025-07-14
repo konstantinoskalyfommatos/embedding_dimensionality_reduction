@@ -7,6 +7,9 @@ def embed_points_isometric(points: np.ndarray) -> np.ndarray:
     Embeds N points into an (N-1)-dimensional space, preserving distances,
     with options to handle the zero vector.
 
+    # NOTE: Check out this jupyter notebook for more details:
+    # https://drive.google.com/file/d/16mqMwqXe_JDxvxHDw2qrfQY7JHsU7Rrx/view?usp=sharing
+
     Args:
         points: np.ndarray of shape (N, n)
 
