@@ -75,7 +75,7 @@ def main():
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=2024,
+        batch_size=2048,
         shuffle=False,
         drop_last=True,
         pin_memory=True,

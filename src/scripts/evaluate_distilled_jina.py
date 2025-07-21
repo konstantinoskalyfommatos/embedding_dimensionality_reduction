@@ -2,9 +2,9 @@ from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 from transformers import AutoTokenizer
 import torch
-from src.scripts.distil_jina_v2 import DistilledModel
+from src.scripts.distill_jina_v2 import DistilledModel
 import os
-from utils.datasets.datasets_info import get_dataset_max_length
+from custom_datasets.datasets_info import get_dataset_max_length
 
 
 # TODO: Define proper validation methods
