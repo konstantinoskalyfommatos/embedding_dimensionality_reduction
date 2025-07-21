@@ -1,4 +1,4 @@
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from transformers import AutoTokenizer
 
 
@@ -7,7 +7,7 @@ DATASETS_LENGTH_COUNT = {
     "cl-nagoya/wikisplit-pp": [
         {
             "tokenizer": "jinaai/jina-embeddings-v2-small-en",
-            "max_length": 115,
+            "max_length": 162,
         },
     ]
 }
@@ -18,7 +18,12 @@ def _get_wikisplit_max_length(
     tokenizer: AutoTokenizer,
 ) -> int:
     """Returns the maximum sentence length for the Wikisplit dataset."""    
-    ds = load_dataset(dataset_name, split="train")
+    ds_train = load_dataset(dataset_name, split="train")
+    ds_val = load_dataset(dataset_name, split="validation")
+    ds_test = load_dataset(dataset_name, split="test")
+
+    # Use concatenate_datasets to combine datasets
+    ds = concatenate_datasets([ds_train, ds_val, ds_test])
     sentences = ds["simple_original"]
     
     return max(len(tokenizer.encode(sentence)) for sentence in sentences)

@@ -27,7 +27,6 @@ from custom_datasets.datasets_info import get_dataset_max_length
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 load_dotenv()
 
-print("Finished loading environment variables and imports.")
 
 def main():
     parser = ArgumentParser(description="Train a distilled Jina model")
@@ -35,7 +34,7 @@ def main():
     parser.add_argument("--hidden_size", type=int, default=312, help="Size of the hidden layer in the projection network")
     parser.add_argument("--finetune_backbone", action='store_true',default=True , help="Whether to finetune the backbone model")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate for training")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
     parser.add_argument("--early_stopping_patience", type=int, default=3, help="Patience for early stopping")
     args = parser.parse_args()
 
@@ -45,7 +44,22 @@ def main():
 
     ds = load_dataset("cl-nagoya/wikisplit-pp")
 
-    train_dataset = WikisplitDataset(ds["train"])
+    # Find the maximum sentence length in the dataset
+    tokenizer = AutoTokenizer.from_pretrained(
+        'jinaai/jina-embeddings-v2-small-en', 
+        trust_remote_code=True
+    )
+    max_seq_length = get_dataset_max_length(
+        "cl-nagoya/wikisplit-pp", 
+        tokenizer
+    )
+    print(f"Maximum sequence length for the dataset: {max_seq_length}")
+
+    train_dataset = WikisplitDataset(
+        ds["train"],
+        tokenizer=tokenizer,
+        max_length=max_seq_length
+    )
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.low_dim_size,
@@ -54,7 +68,11 @@ def main():
         pin_memory=True,
     )
 
-    val_dataset = WikisplitDataset(ds["validation"])
+    val_dataset = WikisplitDataset(
+        ds["validation"],
+        tokenizer=tokenizer,
+        max_length=max_seq_length
+    )
     val_loader = DataLoader(
         val_dataset,
         batch_size=2024,
@@ -67,16 +85,7 @@ def main():
         "jinaai/jina-embeddings-v2-small-en",
         trust_remote_code=True
     ).to("cuda")
-
-    # Find the maximum sentence length in the dataset
-    tokenizer = AutoTokenizer.from_pretrained(
-        'jinaai/jina-embeddings-v2-small-en', 
-        trust_remote_code=True
-    )
-    encoder.max_seq_length = get_dataset_max_length(
-        "cl-nagoya/wikisplit-pp", 
-        tokenizer
-    )
+    encoder.max_seq_length = max_seq_length
     
     projection_net = nn.Sequential(
         nn.Linear(encoder.get_sentence_embedding_dimension(), args.hidden_size),

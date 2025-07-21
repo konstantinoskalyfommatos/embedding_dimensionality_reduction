@@ -32,9 +32,15 @@ def train(
 
         for batch in train_loader:
             optimizer.zero_grad()
-            loss = student.compute_loss(batch, teacher)
+
+            input_ids, attention_mask = batch
+            input_ids = input_ids.to(student.device)
+            attention_mask = attention_mask.to(student.device)
+            loss = student.compute_loss(input_ids, attention_mask, teacher)
             loss.backward()
+
             optimizer.step()
+
             total_loss += loss.item()
 
         avg_loss = total_loss / len(train_loader)
