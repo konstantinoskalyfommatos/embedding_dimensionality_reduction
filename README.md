@@ -21,3 +21,18 @@ uv pip install -r requirements.txt
 ```
 
 Then, create a `.env` file in the project root directory according to the `.env.example` file.
+
+## Environment Configuration
+
+To ensure the project modules are accessible, set the `PYTHONPATH` to include the `src` directory:
+
+```bash
+export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
+```
+
+For a persistent setup, add this to your shell configuration file (e.g., `~/.bashrc` or `~/.zshrc`):
+
+```bash
+echo 'export PYTHONPATH="$(pwd)/src:$PYTHONPATH"' >> ~/.bashrc
+source ~/.bashrc
+```
