@@ -30,24 +30,24 @@ def train(
     for i, epoch in enumerate(range(epochs)):
         total_loss = 0.0
 
-        for batch in train_loader:
-            optimizer.zero_grad()
+        # for batch in train_loader:
+        #     optimizer.zero_grad()
 
-            input_ids, attention_mask = batch
-            input_ids = input_ids.to(student.device)
-            attention_mask = attention_mask.to(student.device)
-            loss = student.compute_loss(input_ids, attention_mask, teacher)
-            loss.backward()
+        #     input_ids, attention_mask = batch
+        #     input_ids = input_ids.to(student.device)
+        #     attention_mask = attention_mask.to(student.device)
+        #     loss = student.compute_loss(input_ids, attention_mask, teacher)
+        #     loss.backward()
 
-            optimizer.step()
+        #     optimizer.step()
 
-            total_loss += loss.item()
+        #     total_loss += loss.item()
 
-        avg_loss = total_loss / len(train_loader)
-        if (i + 1) % print_every == 0:
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {avg_loss:.4f}")
+        # avg_loss = total_loss / len(train_loader)
+        # if (i + 1) % print_every == 0:
+        #     print(f"Epoch [{epoch + 1}/{epochs}], Loss: {avg_loss:.4f}")
 
-        scheduler.step()
+        # scheduler.step()
 
         current_metric = validation_fn(
             student=student, 

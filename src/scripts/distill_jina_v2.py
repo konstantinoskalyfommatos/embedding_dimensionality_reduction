@@ -21,7 +21,7 @@ from core.teacher import Teacher
 from core.train import train
 from core.eval_functions import eval_intrinsic
 
-from custom_datasets.wikisplit_dataset import WikisplitDataset
+from utils.custom_datasets.wikisplit_dataset import WikisplitDataset
 from custom_datasets.datasets_info import get_dataset_max_length
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

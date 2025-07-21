@@ -4,7 +4,7 @@ from transformers import AutoTokenizer
 import torch
 from src.scripts.distill_jina_v2 import DistilledModel
 import os
-from custom_datasets.datasets_info import get_dataset_max_length
+from src.utils.datasets_info import get_dataset_max_length
 
 
 # TODO: Define proper validation methods
@@ -25,7 +25,7 @@ if os.path.exists(distilled_model_path):
     distilled_model.load_state_dict(torch.load(distilled_model_path, map_location="cuda"))
     model_status = "trained"
 else:
-    print("No trained model found. Using untrained model...")
+    print("No trained model found. Using untrained model")
     model_status = "untrained"
 
 print("--- Testing Zero Vector Mapping ---")
