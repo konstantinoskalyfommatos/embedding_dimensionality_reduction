@@ -1,6 +1,7 @@
 import torch
 from utils.embed_functions import embed_points_isometric
 
+
 class Teacher:
     def __init__(self, backbone, device="cuda", use_backbone: bool = True):
         if use_backbone:

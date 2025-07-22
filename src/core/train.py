@@ -29,7 +29,7 @@ def train(
     student.train()
 
     best_model_path = model_path.replace('.pth', '_best.pth')
-    lowest_validation_lossc = None
+    lowest_validation_loss = float('inf')
     epochs_no_improve = 0
 
     for i, epoch in enumerate(range(epochs)):
@@ -94,11 +94,11 @@ def train(
                 print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f}, Validation Loss: {current_validation_loss:.4f}")
 
             # Save best model
-            if lowest_validation_lossc is None or current_validation_loss < lowest_validation_lossc:
-                lowest_validation_lossc = current_validation_loss
+            if current_validation_loss < lowest_validation_loss:
+                lowest_validation_loss = current_validation_loss
                 epochs_no_improve = 0
                 torch.save(student.state_dict(), best_model_path)
-                print(f"New best model (Metric: {lowest_validation_lossc:.4f})")
+                print(f"New best model (Metric: {lowest_validation_loss:.4f})")
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= early_stopping_patience:
