@@ -34,11 +34,11 @@ def main():
     parser = ArgumentParser(description="Train a distilled Jina model")
     parser.add_argument("--low_dim_size", type=int, default=256, help="Size of the low-dimensional space")
     parser.add_argument("--hidden_size", type=int, default=312, help="Size of the hidden layer in the projection network")
-    parser.add_argument("--freeze_backbone", action='store_true', default=True , help="Whether to finetune the backbone model")
+    parser.add_argument("--freeze_backbone", action='store_true', default=False , help="Whether to finetune the backbone model")
     parser.add_argument("--lr", type=float, default=1e-4, help="Starting learning rate for training")
     parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
     parser.add_argument("--warmup_validation_epochs", type=int, default=5, help="Number of warmup epochs before computing validation loss")
-    parser.add_argument("--early_stopping_patience", type=int, default=3, help="Patience for early stopping")
+    parser.add_argument("--early_stopping_patience", type=int, default=5, help="Patience for early stopping")
     args = parser.parse_args()
 
     parser.parse_args()
@@ -80,12 +80,25 @@ def main():
                 split="train",
             )
         )
+        student_val_dataset = PrecalculatedWikisplitDataset(
+            get_precalculated_embeddings_dataset(
+                dataset_name="cl-nagoya/wikisplit-pp",
+                model_name="jinaai/jina-embeddings-v2-small-en",
+                split="validation",
+            )
+        )
     else:
         student_train_dataset = WikisplitDataset(
             ds["train"],
             tokenizer=tokenizer,
             max_length=max_seq_length
         )
+        student_val_dataset = WikisplitDataset(
+            ds["validation"],
+            tokenizer=tokenizer,
+            max_length=max_seq_length
+        )
+        
     student_train_sampler = RandomSampler(student_train_dataset, generator=generator)
     student_train_loader = DataLoader(
         student_train_dataset,
@@ -97,11 +110,6 @@ def main():
         num_workers=4,
     )
 
-    student_val_dataset = WikisplitDataset(
-        ds["validation"],
-        tokenizer=tokenizer,
-        max_length=max_seq_length
-    )
     student_val_loader = DataLoader(
         student_val_dataset,
         batch_size=512,

@@ -86,7 +86,8 @@ def train(
                 student=student, 
                 student_val_loader=student_val_loader,
                 teacher_val_loader=teacher_val_loader,
-                device=student.device
+                device=student.device,
+                use_precalculated_student_embeddings=use_precalculated_student_embeddings,
             )
 
             if (i + 1) % print_every == 0:
