@@ -1,21 +1,22 @@
 import torch
-import numpy as np
 from utils.embed_functions import embed_points_isometric
 
-
 class Teacher:
-    def __init__(self, backbone, device='cuda'):
-        self.backbone = backbone
-        self.device = device
-        self.backbone.to(self.device)
+    def __init__(self, backbone, device="cuda", use_backbone: bool = True):
+        if use_backbone:
+            self.backbone = backbone
+            self.device = device
+            self.backbone.to(self.device)
 
-        for param in self.backbone.parameters():
-            param.requires_grad = False
+            for param in self.backbone.parameters():
+                param.requires_grad = False
 
-        self.backbone.eval()
+            self.backbone.eval()
 
     def get_targets(self, input_ids, attention_mask):
         """Get target embeddings using isometric embedding"""
+        assert hasattr(self, 'backbone'), "Teacher backbone is not set."
+        
         with torch.no_grad():
             backbone_output = self.backbone(
                 {
@@ -24,14 +25,21 @@ class Teacher:
                 }
             )
             embeddings = backbone_output["sentence_embedding"]
-            embeddings_np = embeddings.cpu().numpy()
+            zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
+            embeddings = torch.cat([zero_vector, embeddings], dim=0)
 
-            zero_vector = np.zeros((1, embeddings_np.shape[1]))
-            
-            embeddings_np = np.vstack([zero_vector, embeddings_np])
+            target_embeddings = embed_points_isometric(embeddings)
+            target_embeddings = target_embeddings.clone().detach()
 
-            target_embeddings_np = embed_points_isometric(embeddings_np)
-            target_embeddings = torch.from_numpy(target_embeddings_np).float().to(embeddings.device)
+            return target_embeddings
+        
+    def get_targets_from_precalculated_embeddings(self, embeddings):
+        """Get target embeddings from pre-calculated embeddings"""
+        with torch.no_grad():
+            zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
+            embeddings = torch.cat([zero_vector, embeddings], dim=0)
+
+            target_embeddings = embed_points_isometric(embeddings)
             target_embeddings = target_embeddings.clone().detach()
 
             return target_embeddings

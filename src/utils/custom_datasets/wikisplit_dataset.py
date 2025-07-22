@@ -20,3 +20,15 @@ class WikisplitDataset(Dataset):
             return_tensors="pt",
         )
         return encoded["input_ids"].squeeze(0), encoded["attention_mask"].squeeze(0)
+    
+
+class PrecalculatedWikisplitDataset(Dataset):
+    def __init__(self, embeddings):
+        self.embeddings = embeddings
+
+    def __len__(self):
+        return len(self.embeddings)
+
+    def __getitem__(self, idx):
+        return self.embeddings[idx]
+    

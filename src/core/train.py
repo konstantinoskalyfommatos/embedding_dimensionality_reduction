@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 import os
 from dotenv import load_dotenv
@@ -10,64 +11,102 @@ load_dotenv()
 def train(
     student,
     teacher,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
+    student_train_loader: DataLoader,
+    student_val_loader: DataLoader,
+    teacher_train_loader: DataLoader,
+    teacher_val_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     validation_fn,
     model_path: str,
     epochs: int = 10,
     early_stopping_patience: int = 3,
-    print_every: int = 1
+    print_every: int = 1,
+    use_precalculated_student_embeddings: bool = False,
+    warmup_validation_epochs: int = 3,
 ):
-    print(f"Training student model with {len(train_loader)} batches per epoch.")
+    print("Training student model")
     student.train()
 
     best_model_path = model_path.replace('.pth', '_best.pth')
-    best_metric = None
+    lowest_validation_lossc = None
     epochs_no_improve = 0
 
     for i, epoch in enumerate(range(epochs)):
         total_loss = 0.0
 
-        # for batch in train_loader:
-        #     optimizer.zero_grad()
-
-        #     input_ids, attention_mask = batch
-        #     input_ids = input_ids.to(student.device)
-        #     attention_mask = attention_mask.to(student.device)
-        #     loss = student.compute_loss(input_ids, attention_mask, teacher)
-        #     loss.backward()
-
-        #     optimizer.step()
-
-        #     total_loss += loss.item()
-
-        # avg_loss = total_loss / len(train_loader)
-        # if (i + 1) % print_every == 0:
-        #     print(f"Epoch [{epoch + 1}/{epochs}], Loss: {avg_loss:.4f}")
-
-        # scheduler.step()
-
-        current_metric = validation_fn(
-            student=student, 
-            teacher=teacher,
-            val_loader=val_loader
+        batch_bar = tqdm(
+            total=min(len(student_train_loader), len(teacher_train_loader)),
+            desc=f"Epoch {epoch+1}/{epochs}",
+            leave=False
         )
 
-        # Save best model
-        if best_metric is None or current_metric > best_metric:
-            best_metric = current_metric
-            epochs_no_improve = 0
-            torch.save(student.state_dict(), best_model_path)
-            print(f"New best model (Metric: {best_metric:.4f})")
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= early_stopping_patience:
-                print(f"Early stopping at epoch {epoch}!")
-                break
+        for batch_idx, (student_batch, teacher_batch) in enumerate(
+            zip(student_train_loader, teacher_train_loader)
+        ):
+            optimizer.zero_grad()
 
-    # Load best model before returning
+            if use_precalculated_student_embeddings:
+                assert student.freeze_backbone, (
+                    "Cannot use pre-calculated embeddings when the student's backbone is being finetuned, "
+                    "as the embeddings will change during training."
+                )
+                student_predictions = student.forward_precalculated_embeddings(
+                    student_batch.to(student.device)
+                )
+            else:
+                input_ids, attention_mask = student_batch
+                student_predictions = student(
+                    input_ids.to(student.device), 
+                    attention_mask.to(student.device)
+                )
+
+            teacher_targets = teacher.get_targets_from_precalculated_embeddings(
+                teacher_batch.to(student.device)
+            )
+
+            loss = student.compute_loss(student_predictions, teacher_targets)
+            loss.backward()
+
+            optimizer.step()
+
+            total_loss += loss.item()
+
+            update_every = max(1, len(student_train_loader) // 5)
+            if (batch_idx + 1) % update_every == 0 or (batch_idx + 1) == batch_bar.total:
+                batch_bar.update(update_every if (batch_idx + 1) % update_every == 0 else batch_bar.total % update_every)
+
+        avg_train_loss = total_loss / len(student_train_loader)
+
+        scheduler.step()
+
+        # Only run validation after warmup_epochs
+        if epoch >= warmup_validation_epochs:
+            current_validation_loss = validation_fn(
+                student=student, 
+                student_val_loader=student_val_loader,
+                teacher_val_loader=teacher_val_loader,
+                device=student.device
+            )
+
+            if (i + 1) % print_every == 0:
+                print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f}, Validation Loss: {current_validation_loss:.4f}")
+
+            # Save best model
+            if lowest_validation_lossc is None or current_validation_loss < lowest_validation_lossc:
+                lowest_validation_lossc = current_validation_loss
+                epochs_no_improve = 0
+                torch.save(student.state_dict(), best_model_path)
+                print(f"New best model (Metric: {lowest_validation_lossc:.4f})")
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= early_stopping_patience:
+                    print(f"Early stopping at epoch {epoch}!")
+                    break
+        else:
+            if (i + 1) % print_every == 0:
+                print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f} (warmup)")
+
     if os.path.exists(best_model_path):
         student.load_state_dict(torch.load(best_model_path))
     return student

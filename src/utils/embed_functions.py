@@ -1,8 +1,7 @@
-import numpy as np
-from scipy.linalg import eigh
+import torch
 
 
-def embed_points_isometric(points: np.ndarray) -> np.ndarray:
+def embed_points_isometric(points: torch.Tensor) -> torch.Tensor:
     """
     Embeds N points into an (N-1)-dimensional space, preserving distances,
     with options to handle the zero vector.
@@ -11,15 +10,16 @@ def embed_points_isometric(points: np.ndarray) -> np.ndarray:
     # https://drive.google.com/file/d/16mqMwqXe_JDxvxHDw2qrfQY7JHsU7Rrx/view?usp=sharing
 
     Args:
-        points: np.ndarray of shape (N, n)
+        points: torch.Tensor of shape (N, n) on the correct device
 
     Returns:
-        embedded: np.ndarray of shape (N, N-1) with distances preserved
+        embedded: torch.Tensor of shape (N, N-1) with distances preserved
     """
+    device = points.device
     N, n = points.shape
 
-    zero_mask = np.all(points == 0, axis=1)
-    zero_idx = np.where(zero_mask)[0]
+    zero_mask = torch.all(points == 0, dim=1)
+    zero_idx = torch.where(zero_mask)[0]
 
     if len(zero_idx) == 0:
         raise ValueError(
@@ -28,33 +28,33 @@ def embed_points_isometric(points: np.ndarray) -> np.ndarray:
     else:
         # Move 0 to position 0 if not already there
         if zero_idx[0] != 0:
-            points[[0, zero_idx[0]]] = points[[zero_idx[0], 0]]
+            idx0 = zero_idx[0].item()
+            points = points.clone()
+            points[[0, idx0]] = points[[idx0, 0]]
 
     # Compute pairwise squared distances
-    points_sq = np.sum(points**2, axis=1)
-    D = points_sq[:, np.newaxis] + points_sq[np.newaxis, :] - 2 * points @ points.T
-
-    D = np.maximum(D, 0)
+    points_sq = torch.sum(points ** 2, dim=1)
+    D = points_sq[:, None] + points_sq[None, :] - 2 * torch.matmul(points, points.T)
+    D = torch.clamp(D, min=0)
 
     # Extract submatrix for non-zero points (indices 1 to N-1)
     D_sub = D[1:, 1:]
 
-    # Compute the Gram matrix (G_ij = x_i · x_j) from distances
-    # using: G_ij = (D_{0i} + D_{0j} - D_{ij}) / 2
+    # Compute the Gram matrix
     D0 = D[0, 1:]
-    G = (D0[:, np.newaxis] + D0[np.newaxis, :] - D_sub) / 2
+    G = (D0[:, None] + D0[None, :] - D_sub) / 2
 
-    # Eigendecomposition of G = U Λ U^T
-    eigvals, eigvecs = eigh(G)
+    # Eigendecomposition of G
+    eigvals, eigvecs = torch.linalg.eigh(G)
 
-    # Ensure eigenvalues are non-negative - for to numerical precision
-    eigvals = np.maximum(eigvals, 0)
+    # Ensure eigenvalues are non-negative
+    eigvals = torch.clamp(eigvals, min=0)
 
     # Construct the embedding Y = U sqrt(Λ)
-    Y = eigvecs * np.sqrt(eigvals)
+    Y = eigvecs * torch.sqrt(eigvals)
 
     # Pad with 0 for the first point
-    embedded = np.zeros((N, N-1))
+    embedded = torch.zeros((N, N-1), device=device, dtype=points.dtype)
     embedded[1:] = Y
 
     return embedded
