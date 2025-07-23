@@ -111,6 +111,10 @@ class Student(nn.Module):
         teacher_vectors, 
         positional_loss_factor=0.3
     ):
+        """Computes the loss with a fixed weight for positional loss.
+        
+        The loss is a weighted sum of the positional and similarity losses.
+        """
         similarity_loss = 0.0
         positional_loss = 0.0
         if positional_loss_factor > 0:
