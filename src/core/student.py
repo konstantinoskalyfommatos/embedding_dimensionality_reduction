@@ -1,6 +1,7 @@
 import torch
+from torch.nn import functional as F
 import torch.nn as nn
-from torch.nn.functional import cosine_similarity as cos_sim
+from torch.nn.functional import cosine_similarity
 from core.teacher import Teacher
 
 
@@ -71,15 +72,45 @@ class Student(nn.Module):
           
         return low_dim_embeddings[1:]
 
-    def compute_loss(self, student_predictions, teacher_targets, alpha=0.3):
-        # Positioning
-        loss_position = nn.MSELoss()(student_predictions, teacher_targets)
+    def _compute_positional_loss(self, student_vectors, teacher_vectors):
+        """Compute the pairwise distance preservation loss between student and teacher vectors."""
+    
+        student_dist = torch.cdist(student_vectors, student_vectors, p=2)
+        teacher_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2)
+            
+        return nn.MSELoss()(student_dist, teacher_dist)
+    
+    def _compute_similarity_loss(self, student_vectors, teacher_vectors):
+        """Compute the pairwise cosine similarity preservation loss between student and teacher vectors."""
+        student_vectors = F.normalize(student_vectors, dim=1)
+        teacher_vectors = F.normalize(teacher_vectors, dim=1)
 
-        # Cosine similarity
-        student_sim_matrix = cos_sim(student_predictions, student_predictions)
-        target_sim_matrix = cos_sim(teacher_targets, teacher_targets)
+        student_sim_matrix = torch.matmul(student_vectors, student_vectors.T)
+        teacher_sim_matrix = torch.matmul(teacher_vectors, teacher_vectors.T)
 
-        loss_similarity = nn.MSELoss()(student_sim_matrix, target_sim_matrix)
+        # Mask to select only the upper triangle, excluding the diagonal
+        mask = torch.triu(torch.ones_like(student_sim_matrix), diagonal=1).bool()
+        
+        student_sim_matrix = student_sim_matrix[mask]
+        teacher_sim_matrix = teacher_sim_matrix[mask]
 
-        total_loss = alpha * loss_position + (1 - alpha) * loss_similarity
-        return total_loss
+        return nn.MSELoss()(student_sim_matrix, teacher_sim_matrix)
+
+    def compute_loss_fixed_weight(self, student_vectors, teacher_vectors, alpha=0.3):
+        positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
+        similarity_loss = self._compute_similarity_loss(student_vectors[1:], teacher_vectors[1:])
+
+        return alpha * positional_loss + (1 - alpha) * similarity_loss
+    
+    def compute_loss_adaptive_weight(self, student_vectors, teacher_vectors):
+        positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
+        similarity_loss = self._compute_similarity_loss(student_vectors[1:], teacher_vectors[1:])
+
+        pos_weight = 1.0 / (positional_loss.detach() + 1e-8)
+        sim_weight = 1.0 / (similarity_loss.detach() + 1e-8)
+        
+        total_weight = pos_weight + sim_weight
+        alpha_adaptive = pos_weight / total_weight
+        
+        return alpha_adaptive * positional_loss + (1 - alpha_adaptive) * similarity_loss
+    
