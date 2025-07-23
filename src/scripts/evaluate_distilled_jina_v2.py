@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 
 from core.student import Student
 from core.teacher import Teacher
-from core.eval_functions import eval_extrinsic, eval_intrinsic
+from core.eval_functions import eval_intrinsic_projected_space, eval_intrinsic_original_vs_projected_space
 from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
 from utils.datasets_info import get_dataset_max_length
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
@@ -107,8 +107,8 @@ def main():
 
     teacher = Teacher(backbone=encoder, use_backbone=False)
 
-    print("Extrinsic evaluation on test set")
-    extrinsic_test_loss = eval_extrinsic(
+    print("Evaluating on projected space")
+    projected_test_loss = eval_intrinsic_projected_space(
         student=student,
         teacher=teacher,
         student_val_loader=student_test_loader,
@@ -117,10 +117,10 @@ def main():
         positional_loss_factor=args.positional_loss_factor,
         use_precalculated_student_embeddings=False
     )
-    print(f"Extrinsic test Loss: {extrinsic_test_loss:.4f}")
+    print(f"Test Loss: {projected_test_loss:.4f}")
 
-    print("Intrinsic evaluation on test set")
-    intrinsic_test_loss = eval_intrinsic(
+    print("Evaluating on original vs projected space")
+    cross_space_loss = eval_intrinsic_original_vs_projected_space(
         student=student,
         student_val_loader=student_test_loader,
         teacher_val_loader=teacher_test_loader,
@@ -128,7 +128,7 @@ def main():
         positional_loss_factor=args.positional_loss_factor,
         use_precalculated_student_embeddings=False
     )
-    print(f"Intrinsic test Loss: {intrinsic_test_loss:.4f}")
+    print(f"Test Loss: {cross_space_loss:.4f}")
 
 
 if __name__ == "__main__":

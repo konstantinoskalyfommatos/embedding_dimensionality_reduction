@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from core.student import Student
 from core.teacher import Teacher
 from core.train import train
-from core.eval_functions import eval_intrinsic
+from core.eval_functions import eval_intrinsic_original_vs_projected_space
 
 from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
 from utils.datasets_info import get_dataset_max_length
@@ -197,7 +197,7 @@ def main():
         teacher_val_loader=teacher_val_loader,
         scheduler=scheduler,
         optimizer=optimizer,
-        validation_fn=eval_intrinsic,
+        validation_fn=eval_intrinsic_original_vs_projected_space,
         model_path=distilled_model_path,
         epochs=args.epochs,
         early_stopping_patience=args.early_stopping_patience,

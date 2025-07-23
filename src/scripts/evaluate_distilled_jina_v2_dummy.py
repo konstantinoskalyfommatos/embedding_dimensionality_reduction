@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 
 from core.student import Student
 from core.teacher import Teacher
-from core.eval_functions import eval_intrinsic
+from core.eval_functions import eval_intrinsic_original_vs_projected_space
 from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
 
@@ -48,7 +48,7 @@ student.eval()
 teacher = Teacher(backbone=encoder, use_backbone=False)
 
 # Evaluate intrinsic loss
-loss = eval_intrinsic(
+loss = eval_intrinsic_original_vs_projected_space(
     student=student,
     student_val_loader=student_test_loader,
     teacher_val_loader=teacher_test_loader,

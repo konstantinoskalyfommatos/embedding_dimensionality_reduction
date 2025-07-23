@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 
 
-def eval_intrinsic(
+def eval_intrinsic_original_vs_projected_space(
     student,
     student_val_loader: DataLoader,
     teacher_val_loader: DataLoader,
@@ -63,7 +63,7 @@ def eval_intrinsic(
     return avg_loss
 
 
-def eval_extrinsic(
+def eval_intrinsic_projected_space(
     student,
     teacher,
     student_val_loader: DataLoader,
