@@ -1,8 +1,6 @@
 import torch
 from torch.nn import functional as F
 import torch.nn as nn
-from torch.nn.functional import cosine_similarity
-from core.teacher import Teacher
 
 
 class Student(nn.Module):
@@ -34,7 +32,10 @@ class Student(nn.Module):
         )
         embeddings = backbone_output["sentence_embedding"]
 
-        zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
+        zero_vector = torch.zeros(
+            (1, embeddings.shape[1]), 
+            device=embeddings.device
+        )
         embeddings = torch.cat([zero_vector, embeddings], dim=0)
 
         if self.freeze_backbone:
@@ -58,11 +59,14 @@ class Student(nn.Module):
         projection network.
         """
         assert self.freeze_backbone, (
-            "Cannot use pre-calculated embeddings when the student's backbone is being finetuned, "
-            "as the embeddings will change during training."
+            "Cannot use pre-calculated embeddings when the student's backbone "
+            "is being finetuned, as the embeddings will change during training."
         )
 
-        zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
+        zero_vector = torch.zeros(
+            (1, embeddings.shape[1]), 
+            device=embeddings.device
+        )
         embeddings = torch.cat([zero_vector, embeddings], dim=0)
         
         low_dim_embeddings = self.projection_net(embeddings)
@@ -71,9 +75,16 @@ class Student(nn.Module):
             return low_dim_embeddings
           
         return low_dim_embeddings[1:]
+    
+    def _is_zero_vector_in_embeddings(self, embeddings):
+        """Check if the first vector in the embeddings is a zero vector."""
+        return (
+            embeddings.shape[0] > 0 and 
+            torch.allclose(embeddings[0], torch.zeros_like(embeddings[0]))
+        )
 
     def _compute_positional_loss(self, student_vectors, teacher_vectors):
-        """Compute the pairwise distance preservation loss between student and teacher vectors."""
+        """Computes the pairwise distance preservation loss."""
         student_dist = torch.cdist(student_vectors, student_vectors, p=2)
         teacher_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2)
 
@@ -82,7 +93,7 @@ class Student(nn.Module):
         return nn.MSELoss()(student_dist[mask], teacher_dist[mask])
     
     def _compute_similarity_loss(self, student_vectors, teacher_vectors):
-        """Compute the pairwise cosine similarity preservation loss between student and teacher vectors."""
+        """Computes the pairwise cosine similarity preservation loss"""
         student_vectors = F.normalize(student_vectors, dim=1)
         teacher_vectors = F.normalize(teacher_vectors, dim=1)
 
@@ -94,29 +105,48 @@ class Student(nn.Module):
 
         return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask])
 
-    def compute_loss_fixed_weight(self, student_vectors, teacher_vectors, positional_loss_factor=0.3):
+    def compute_loss_fixed_weight(
+        self, 
+        student_vectors, 
+        teacher_vectors, 
+        positional_loss_factor=0.3
+    ):
         similarity_loss = 0.0
         positional_loss = 0.0
         if positional_loss_factor > 0:
-            positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
+            positional_loss = self._compute_positional_loss(
+                student_vectors, 
+                teacher_vectors
+            )
         if positional_loss_factor < 1:
-            # Remove the first vectors if the first vector of the teacher is the zero vector
-            if (
-                teacher_vectors.shape[0] > 1 and 
-                torch.allclose(
-                    teacher_vectors[0], 
-                    torch.zeros_like(teacher_vectors[0])
-                )
-            ):
+            # Remove zero vector if it exists
+            if self._is_zero_vector_in_embeddings(teacher_vectors):
                 teacher_vectors = teacher_vectors[1:]
                 student_vectors = student_vectors[1:]
-            similarity_loss = self._compute_similarity_loss(student_vectors, teacher_vectors)
 
-        return positional_loss_factor * positional_loss + (1 - positional_loss_factor) * similarity_loss
+            similarity_loss = self._compute_similarity_loss(
+                student_vectors, 
+                teacher_vectors
+            )
+
+        return (
+            positional_loss_factor * positional_loss + 
+            (1 - positional_loss_factor) * similarity_loss
+        )
     
     def compute_loss_adaptive_weight(self, student_vectors, teacher_vectors):
-        positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
-        similarity_loss = self._compute_similarity_loss(student_vectors[1:], teacher_vectors[1:])
+        positional_loss = self._compute_positional_loss(
+            student_vectors, 
+            teacher_vectors
+        )
+
+        if self._is_zero_vector_in_embeddings(teacher_vectors):
+            teacher_vectors = teacher_vectors[1:]
+            student_vectors = student_vectors[1:]
+        similarity_loss = self._compute_similarity_loss(
+            student_vectors, 
+            teacher_vectors
+        )
 
         pos_weight = 1.0 / (positional_loss.detach() + 1e-8)
         sim_weight = 1.0 / (similarity_loss.detach() + 1e-8)
@@ -124,5 +154,8 @@ class Student(nn.Module):
         total_weight = pos_weight + sim_weight
         positional_loss_factor_adaptive = pos_weight / total_weight
         
-        return positional_loss_factor_adaptive * positional_loss + (1 - positional_loss_factor_adaptive) * similarity_loss
+        return (
+            positional_loss_factor_adaptive * positional_loss + 
+            (1 - positional_loss_factor_adaptive) * similarity_loss
+        )
     

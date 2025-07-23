@@ -1,6 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 
 
 def eval_intrinsic(
@@ -13,19 +12,24 @@ def eval_intrinsic(
 ) -> float:
     """Returns the average combined loss (distance + cosine similarity).
     
-    The loss is computed as a weighted sum of the MSE between the cosine similarity matrices
-    and the MSE between the distance matrices of the student and teacher embeddings.
+    The loss is computed as a weighted sum of the MSE between the cosine
+    similarity matrices and the MSE between the distance matrices of the 
+    student and teacher embeddings.
     """
     student.eval()
     total_loss = 0.0
     total_samples = 0
 
     with torch.no_grad():
-        for student_batch, teacher_batch in zip(student_val_loader, teacher_val_loader):
+        for student_batch, teacher_batch in zip(
+            student_val_loader, 
+            teacher_val_loader
+        ):
             if use_precalculated_student_embeddings:
                 assert student.freeze_backbone, (
-                    "Cannot use pre-calculated embeddings when the student's backbone is being finetuned, "
-                    "as the embeddings will change during training."
+                    "Cannot use pre-calculated embeddings when the student's "
+                    "backbone is being finetuned, as the embeddings will "
+                    "change during training."
                 )
                 student_emb = student.forward_precalculated_embeddings(
                     student_batch.to(device),
@@ -47,7 +51,11 @@ def eval_intrinsic(
                 positional_loss_factor=positional_loss_factor
             )
 
-            batch_size = input_ids.size(0) if not use_precalculated_student_embeddings else student_batch.shape[0]
+            if not use_precalculated_student_embeddings:
+                batch_size = input_ids.size(0)
+            else:
+                batch_size = student_batch.shape[0]
+
             total_loss += loss.item() * batch_size
             total_samples += batch_size
 
@@ -64,17 +72,25 @@ def eval_extrinsic(
     positional_loss_factor: float = 0.1,
     use_precalculated_student_embeddings: bool = False,
 ) -> float:
-    """Evaluate the student model by comparing its mapped embeddings to the teacher's mapped embeddings."""
+    """Extrensic evaluation.
+    
+    Evaluates the student model by comparing its mapped embeddings
+    to the teacher's mapped embeddings.
+    """
     student.eval()
     total_loss = 0.0
     total_samples = 0
 
     with torch.no_grad():
-        for student_batch, teacher_batch in zip(student_val_loader, teacher_val_loader):
+        for student_batch, teacher_batch in zip(
+            student_val_loader, 
+            teacher_val_loader
+        ):
             if use_precalculated_student_embeddings:
                 assert student.freeze_backbone, (
-                    "Cannot use pre-calculated embeddings when the student's backbone is being finetuned, "
-                    "as the embeddings will change during training."
+                    "Cannot use pre-calculated embeddings when the student's "
+                    "backbone is being finetuned, as the embeddings will "
+                    "change during training."
                 )
                 student_predictions = student.forward_precalculated_embeddings(
                     student_batch.to(device),
