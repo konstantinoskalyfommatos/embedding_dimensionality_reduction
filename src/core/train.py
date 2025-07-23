@@ -28,7 +28,6 @@ def train(
     print("Training student model")
     student.train()
 
-    best_model_path = model_path.replace('.pth', '_best.pth')
     lowest_validation_loss = float('inf')
     epochs_no_improve = 0
 
@@ -101,7 +100,7 @@ def train(
             if current_validation_loss < lowest_validation_loss:
                 lowest_validation_loss = current_validation_loss
                 epochs_no_improve = 0
-                torch.save(student.state_dict(), best_model_path)
+                torch.save(student.state_dict(), model_path)
                 print(f"New best model (Metric: {lowest_validation_loss:.4f})")
             else:
                 epochs_no_improve += 1
@@ -112,6 +111,6 @@ def train(
             if (i + 1) % print_every == 0:
                 print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f} (warmup)")
 
-    if os.path.exists(best_model_path):
-        student.load_state_dict(torch.load(best_model_path))
+    if os.path.exists(model_path):
+        student.load_state_dict(torch.load(model_path))
     return student

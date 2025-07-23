@@ -27,16 +27,17 @@ load_dotenv()
 
 def main():
     parser = ArgumentParser(description="Evaluate distilled Jina v2 student model")
-    parser.add_argument("--model_path", type=str, default="storage/models/distilled_jina_v2_best.pth")
     parser.add_argument("--low_dim_size", type=int, default=256, help="Low-dimensional size used during training")
-    parser.add_argument("--hidden_size", type=int, default=312, help="Hidden size of the projection network")
+    parser.add_argument("--hidden_size", type=int, default=None, help="Hidden size of the projection network")
+    parser.add_argument("--batch_size", type=int, default=2048, help="Batch size for evaluation")
+    parser.add_argument("--positional_loss_factor", type=float, default=0.5, help="Factor for positional loss in evaluation")
     args = parser.parse_args()
 
     PROJECT_ROOT = os.getenv("PROJECT_ROOT")
     if not PROJECT_ROOT:
         raise ValueError("PROJECT_ROOT environment variable is not set. Please set it in your .env file.")
 
-    model_path = args.model_path or os.path.join(PROJECT_ROOT, args.model_path)
+    model_path = os.path.join(PROJECT_ROOT, f"storage/models/jina-embeddings-v2-small-en_{args.low_dim_size}.pth")
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model checkpoint not found at {model_path}")
 
@@ -84,11 +85,16 @@ def main():
         trust_remote_code=True
     ).to("cuda")
     encoder.max_seq_length = max_seq_length
+    if args.hidden_size is None:
+        hidden_size = (encoder.get_sentence_embedding_dimension() + args.low_dim_size // 2)
+        hidden_size = hidden_size if hidden_size % 2 == 0 else hidden_size - 1
+    else:
+        hidden_size = args.hidden_size
 
     projection_net = torch.nn.Sequential(
-        torch.nn.Linear(encoder.get_sentence_embedding_dimension(), args.hidden_size),
+        torch.nn.Linear(encoder.get_sentence_embedding_dimension(), hidden_size),
         torch.nn.ReLU(),
-        torch.nn.Linear(args.hidden_size, args.low_dim_size),
+        torch.nn.Linear(hidden_size, args.low_dim_size),
     )
 
     student = Student(
@@ -108,7 +114,7 @@ def main():
         student_val_loader=student_test_loader,
         teacher_val_loader=teacher_test_loader,
         device="cuda",
-        positional_loss_factor=0.5,
+        positional_loss_factor=args.positional_loss_factor,
         use_precalculated_student_embeddings=False
     )
     print(f"Extrinsic test Loss: {extrinsic_test_loss:.4f}")
@@ -119,7 +125,7 @@ def main():
         student_val_loader=student_test_loader,
         teacher_val_loader=teacher_test_loader,
         device="cuda",
-        positional_loss_factor=0.5,
+        positional_loss_factor=args.positional_loss_factor,
         use_precalculated_student_embeddings=False
     )
     print(f"Intrinsic test Loss: {intrinsic_test_loss:.4f}")

@@ -33,7 +33,7 @@ load_dotenv()
 def main():
     parser = ArgumentParser(description="Train a distilled Jina model")
     parser.add_argument("--low_dim_size", type=int, default=256, help="Size of the low-dimensional space")
-    parser.add_argument("--hidden_size", type=int, default=312, help="Size of the hidden layer in the projection network")
+    parser.add_argument("--hidden_size", type=int, default=None, help="Size of the hidden layer in the projection network")
     parser.add_argument("--freeze_backbone", action='store_true', default=False , help="Whether to finetune the backbone model")
     parser.add_argument("--lr", type=float, default=1e-4, help="Starting learning rate for training")
     parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
@@ -159,11 +159,16 @@ def main():
         trust_remote_code=True
     ).to("cuda")
     encoder.max_seq_length = max_seq_length
+    if args.hidden_size:
+        hidden_size = args.hidden_size
+    else:
+        hidden_size = (encoder.get_sentence_embedding_dimension() + args.low_dim_size // 2)
+        hidden_size = hidden_size if hidden_size % 2 == 0 else hidden_size - 1
     
     projection_net = nn.Sequential(
-        nn.Linear(encoder.get_sentence_embedding_dimension(), args.hidden_size),
+        nn.Linear(encoder.get_sentence_embedding_dimension(), hidden_size),
         nn.ReLU(),
-        nn.Linear(args.hidden_size, args.low_dim_size),
+        nn.Linear(hidden_size, args.low_dim_size),
     )
         
     student = Student(
@@ -176,7 +181,7 @@ def main():
 
     distilled_model_path = os.path.join(
         PROJECT_ROOT,
-        "storage/models/distilled_jina_v2.pth"
+        f"storage/models/jina-embeddings-v2-small-en_{args.low_dim_size}.pth"
     )
     os.makedirs(os.path.dirname(distilled_model_path), exist_ok=True)
     
