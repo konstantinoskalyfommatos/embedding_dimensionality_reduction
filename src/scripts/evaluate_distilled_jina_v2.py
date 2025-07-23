@@ -55,7 +55,7 @@ def main():
     )
     student_test_loader = DataLoader(
         student_test_dataset,
-        batch_size=args.low_dim_size,
+        batch_size=2048,
         shuffle=False,
         drop_last=True,
         pin_memory=True,
@@ -72,7 +72,7 @@ def main():
     )
     teacher_test_loader = DataLoader(
         teacher_test_dataset,
-        batch_size=args.low_dim_size,
+        batch_size=2048,
         shuffle=False,
         drop_last=True,
         pin_memory=True,
@@ -108,7 +108,7 @@ def main():
         student_val_loader=student_test_loader,
         teacher_val_loader=teacher_test_loader,
         device="cuda",
-        alpha=0.3,
+        positional_loss_factor=0.5,
         use_precalculated_student_embeddings=False
     )
     print(f"Extrinsic test Loss: {extrinsic_test_loss:.4f}")
@@ -119,7 +119,7 @@ def main():
         student_val_loader=student_test_loader,
         teacher_val_loader=teacher_test_loader,
         device="cuda",
-        alpha=0.3,
+        positional_loss_factor=0.5,
         use_precalculated_student_embeddings=False
     )
     print(f"Intrinsic test Loss: {intrinsic_test_loss:.4f}")

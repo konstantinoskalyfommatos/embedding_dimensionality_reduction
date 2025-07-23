@@ -34,7 +34,7 @@ class Teacher:
 
             return target_embeddings
         
-    def get_targets_from_precalculated_embeddings(self, embeddings):
+    def get_targets_from_precalculated_embeddings(self, embeddings, keep_zero_vector=True):
         """Get target embeddings from pre-calculated embeddings"""
         with torch.no_grad():
             zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
@@ -42,6 +42,9 @@ class Teacher:
 
             target_embeddings = embed_points_isometric(embeddings)
             target_embeddings = target_embeddings.clone().detach()
+
+            if not keep_zero_vector:
+                target_embeddings = target_embeddings[1:]
 
             return target_embeddings
         

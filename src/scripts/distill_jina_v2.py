@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--freeze_backbone", action='store_true', default=False , help="Whether to finetune the backbone model")
     parser.add_argument("--lr", type=float, default=1e-4, help="Starting learning rate for training")
     parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
-    parser.add_argument("--warmup_validation_epochs", type=int, default=5, help="Number of warmup epochs before computing validation loss")
+    parser.add_argument("--warmup_validation_epochs", type=int, default=10, help="Number of warmup epochs before computing validation loss")
     parser.add_argument("--early_stopping_patience", type=int, default=5, help="Patience for early stopping")
     args = parser.parse_args()
 
@@ -112,7 +112,7 @@ def main():
 
     student_val_loader = DataLoader(
         student_val_dataset,
-        batch_size=args.low_dim_size,
+        batch_size=512,
         shuffle=False,
         drop_last=True,
         pin_memory=True,

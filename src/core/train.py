@@ -65,7 +65,11 @@ def train(
                 teacher_batch.to(student.device)
             )
 
-            loss = student.compute_loss_fixed_weight(student_predictions, teacher_targets)
+            loss = student.compute_loss_fixed_weight(
+                student_predictions,
+                teacher_targets,
+                positional_loss_factor=1.0
+            )
             loss.backward()
 
             optimizer.step()

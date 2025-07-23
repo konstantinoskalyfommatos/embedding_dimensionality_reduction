@@ -9,7 +9,7 @@ from core.eval_functions import eval_intrinsic
 from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
 
-sentences = ["Hello world", "Greetings", "How long is Limassol from here?"]
+sentences = ["Hello world", "Greetings", "How long is Limassol from here?", "And then the Cosmos was born."]
 
 tokenizer = AutoTokenizer.from_pretrained('jinaai/jina-embeddings-v2-small-en', trust_remote_code=True)
 encoder = SentenceTransformer("jinaai/jina-embeddings-v2-small-en", trust_remote_code=True).to("cuda")
@@ -53,7 +53,7 @@ loss = eval_intrinsic(
     student_val_loader=student_test_loader,
     teacher_val_loader=teacher_test_loader,
     device="cuda",
-    alpha=0.1,
+    positional_loss_factor=0.5,
     use_precalculated_student_embeddings=False
 )
 print(f"Intrinsic test Loss: {loss:.4f}")

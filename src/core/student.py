@@ -74,11 +74,12 @@ class Student(nn.Module):
 
     def _compute_positional_loss(self, student_vectors, teacher_vectors):
         """Compute the pairwise distance preservation loss between student and teacher vectors."""
-    
         student_dist = torch.cdist(student_vectors, student_vectors, p=2)
         teacher_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2)
+
+        mask = torch.triu(torch.ones_like(student_dist), diagonal=1).bool()
             
-        return nn.MSELoss()(student_dist, teacher_dist)
+        return nn.MSELoss()(student_dist[mask], teacher_dist[mask])
     
     def _compute_similarity_loss(self, student_vectors, teacher_vectors):
         """Compute the pairwise cosine similarity preservation loss between student and teacher vectors."""
@@ -90,17 +91,28 @@ class Student(nn.Module):
 
         # Mask to select only the upper triangle, excluding the diagonal
         mask = torch.triu(torch.ones_like(student_sim_matrix), diagonal=1).bool()
-        
-        student_sim_matrix = student_sim_matrix[mask]
-        teacher_sim_matrix = teacher_sim_matrix[mask]
 
-        return nn.MSELoss()(student_sim_matrix, teacher_sim_matrix)
+        return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask])
 
-    def compute_loss_fixed_weight(self, student_vectors, teacher_vectors, alpha=0.3):
-        positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
-        similarity_loss = self._compute_similarity_loss(student_vectors[1:], teacher_vectors[1:])
+    def compute_loss_fixed_weight(self, student_vectors, teacher_vectors, positional_loss_factor=0.3):
+        similarity_loss = 0.0
+        positional_loss = 0.0
+        if positional_loss_factor > 0:
+            positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
+        if positional_loss_factor < 1:
+            # Remove the first vectors if the first vector of the teacher is the zero vector
+            if (
+                teacher_vectors.shape[0] > 1 and 
+                torch.allclose(
+                    teacher_vectors[0], 
+                    torch.zeros_like(teacher_vectors[0])
+                )
+            ):
+                teacher_vectors = teacher_vectors[1:]
+                student_vectors = student_vectors[1:]
+            similarity_loss = self._compute_similarity_loss(student_vectors, teacher_vectors)
 
-        return alpha * positional_loss + (1 - alpha) * similarity_loss
+        return positional_loss_factor * positional_loss + (1 - positional_loss_factor) * similarity_loss
     
     def compute_loss_adaptive_weight(self, student_vectors, teacher_vectors):
         positional_loss = self._compute_positional_loss(student_vectors, teacher_vectors)
@@ -110,7 +122,7 @@ class Student(nn.Module):
         sim_weight = 1.0 / (similarity_loss.detach() + 1e-8)
         
         total_weight = pos_weight + sim_weight
-        alpha_adaptive = pos_weight / total_weight
+        positional_loss_factor_adaptive = pos_weight / total_weight
         
-        return alpha_adaptive * positional_loss + (1 - alpha_adaptive) * similarity_loss
+        return positional_loss_factor_adaptive * positional_loss + (1 - positional_loss_factor_adaptive) * similarity_loss
     
