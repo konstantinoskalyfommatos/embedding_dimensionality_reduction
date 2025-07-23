@@ -112,7 +112,7 @@ def main():
 
     student_val_loader = DataLoader(
         student_val_dataset,
-        batch_size=512,
+        batch_size=args.low_dim_size,
         shuffle=False,
         drop_last=True,
         pin_memory=True,

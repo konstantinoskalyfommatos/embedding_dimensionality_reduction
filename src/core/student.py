@@ -64,12 +64,12 @@ class Student(nn.Module):
         zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
         embeddings = torch.cat([zero_vector, embeddings], dim=0)
         
+        low_dim_embeddings = self.projection_net(embeddings)
+
         if self.training or keep_zero_vector:
-            return self.projection_net(embeddings)
-        else:
-            with torch.no_grad():
-                low_dim_embeddings = self.projection_net(embeddings)
-            return low_dim_embeddings[1:]
+            return low_dim_embeddings
+          
+        return low_dim_embeddings[1:]
 
     def compute_loss(self, student_predictions, teacher_targets, alpha=0.3):
         # Positioning

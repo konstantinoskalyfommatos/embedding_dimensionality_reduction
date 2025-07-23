@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 
 from core.student import Student
 from core.teacher import Teacher
-from core.eval_functions import eval_extrinsic
+from core.eval_functions import eval_extrinsic, eval_intrinsic
 from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
 from utils.datasets_info import get_dataset_max_length
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
@@ -28,7 +28,6 @@ load_dotenv()
 def main():
     parser = ArgumentParser(description="Evaluate distilled Jina v2 student model")
     parser.add_argument("--model_path", type=str, default="storage/models/distilled_jina_v2_best.pth")
-    parser.add_argument("--batch_size", type=int, default=512, help="Batch size for evaluation")
     parser.add_argument("--low_dim_size", type=int, default=256, help="Low-dimensional size used during training")
     parser.add_argument("--hidden_size", type=int, default=312, help="Hidden size of the projection network")
     args = parser.parse_args()
@@ -56,7 +55,7 @@ def main():
     )
     student_test_loader = DataLoader(
         student_test_dataset,
-        batch_size=args.batch_size,
+        batch_size=args.low_dim_size,
         shuffle=False,
         drop_last=True,
         pin_memory=True,
@@ -73,7 +72,7 @@ def main():
     )
     teacher_test_loader = DataLoader(
         teacher_test_dataset,
-        batch_size=args.batch_size,
+        batch_size=args.low_dim_size,
         shuffle=False,
         drop_last=True,
         pin_memory=True,
@@ -102,8 +101,8 @@ def main():
 
     teacher = Teacher(backbone=encoder, use_backbone=False)
 
-    print("Evaluating student model on test set")
-    test_loss = eval_extrinsic(
+    print("Extrinsic evaluation on test set")
+    extrinsic_test_loss = eval_extrinsic(
         student=student,
         teacher=teacher,
         student_val_loader=student_test_loader,
@@ -112,7 +111,18 @@ def main():
         alpha=0.3,
         use_precalculated_student_embeddings=False
     )
-    print(f"Test Loss: {test_loss:.4f}")
+    print(f"Extrinsic test Loss: {extrinsic_test_loss:.4f}")
+
+    print("Intrinsic evaluation on test set")
+    intrinsic_test_loss = eval_intrinsic(
+        student=student,
+        student_val_loader=student_test_loader,
+        teacher_val_loader=teacher_test_loader,
+        device="cuda",
+        alpha=0.3,
+        use_precalculated_student_embeddings=False
+    )
+    print(f"Intrinsic test Loss: {intrinsic_test_loss:.4f}")
 
 
 if __name__ == "__main__":
