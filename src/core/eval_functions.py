@@ -10,11 +10,11 @@ def eval_intrinsic(
     positional_loss_factor: float = 0.5, 
     use_precalculated_student_embeddings: bool = False,
 ) -> float:
-    """Returns the average combined loss (distance + cosine similarity).
+    """Evaluation on high and low-dimensional spaces.
     
-    The loss is computed as a weighted sum of the MSE between the cosine
-    similarity matrices and the MSE between the distance matrices of the 
-    student and teacher embeddings.
+    Evaluates the student model by comparing its embeddings'
+    cosine similarities and pairwise distances to the teacher's
+    embeddings, where the latter are in the high-dimensional space.
     """
     student.eval()
     total_loss = 0.0
@@ -72,7 +72,7 @@ def eval_extrinsic(
     positional_loss_factor: float = 0.1,
     use_precalculated_student_embeddings: bool = False,
 ) -> float:
-    """Extrensic evaluation.
+    """Evaluation on the same low-dimensional space.
     
     Evaluates the student model by comparing its mapped embeddings
     to the teacher's mapped embeddings.
