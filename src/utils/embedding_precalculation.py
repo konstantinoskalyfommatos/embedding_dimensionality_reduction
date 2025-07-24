@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
+from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset
 from utils.datasets_info import get_dataset_max_length
 
 
@@ -51,7 +51,7 @@ def get_precalculated_embeddings_dataset(
         raise FileNotFoundError(f"Precalculated embeddings not found at {output_path}")
 
     embeddings = torch.load(output_path)
-    return PrecalculatedWikisplitDataset(embeddings)
+    return EmbeddingsDataset(embeddings)
 
 
 def precalculate_embeddings(
@@ -80,8 +80,8 @@ def precalculate_embeddings(
     for split in splits:
         print(f"Processing split: {split}")
         ds_split = dataset[split]
-        custom_dataset = WikisplitDataset(
-            ds_split, 
+        custom_dataset = TokenizedDataset(
+            ds_split["simple_original"], 
             tokenizer=tokenizer, 
             max_length=get_dataset_max_length(dataset_name, tokenizer)
         )

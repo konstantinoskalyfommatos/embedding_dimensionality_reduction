@@ -47,8 +47,9 @@ def train(
 
             if use_precalculated_student_embeddings:
                 assert student.freeze_backbone, (
-                    "Cannot use pre-calculated embeddings when the student's backbone is being finetuned, "
-                    "as the embeddings will change during training."
+                    "Cannot use pre-calculated embeddings when the student's "
+                    "backbone is being finetuned, as the embeddings will "
+                    "change during training."
                 )
                 student_predictions = student.forward_precalculated_embeddings(
                     student_batch.to(student.device)
@@ -94,7 +95,10 @@ def train(
             )
 
             if (i + 1) % print_every == 0:
-                print(f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f}, Validation Loss: {current_validation_loss:.4f}")
+                print(
+                    f"Epoch [{epoch + 1}/{epochs}], Train Loss: {avg_train_loss:.4f}, "
+                    f"Validation Loss: {current_validation_loss:.4f}"
+                )
 
             # Save best model
             if current_validation_loss < lowest_validation_loss:

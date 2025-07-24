@@ -16,7 +16,7 @@ from transformers import AutoTokenizer
 from core.student import Student
 from core.teacher import Teacher
 from core.eval_functions import eval_intrinsic_projected_space, eval_intrinsic_original_vs_projected_space
-from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
+from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset
 from utils.datasets_info import get_dataset_max_length
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
 from datasets import load_dataset
@@ -49,8 +49,8 @@ def main():
     print(f"Max sequence length: {max_seq_length}")
 
     # Student test dataset
-    student_test_dataset = WikisplitDataset(
-        ds["test"],
+    student_test_dataset = TokenizedDataset(
+        ds["test"]["simple_original"],
         tokenizer=tokenizer,
         max_length=max_seq_length
     )
@@ -64,7 +64,7 @@ def main():
     )
 
     # Teacher test dataset
-    teacher_test_dataset = PrecalculatedWikisplitDataset(
+    teacher_test_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
             dataset_name="cl-nagoya/wikisplit-pp",
             model_name="jinaai/jina-embeddings-v2-small-en",

@@ -22,7 +22,7 @@ from core.teacher import Teacher
 from core.train import train
 from core.eval_functions import eval_intrinsic_original_vs_projected_space
 
-from utils.custom_datasets.wikisplit_dataset import WikisplitDataset, PrecalculatedWikisplitDataset
+from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset
 from utils.datasets_info import get_dataset_max_length
 from utils.embedding_precalculation import get_precalculated_embeddings_dataset
 
@@ -73,14 +73,14 @@ def main():
 
     # Student datasets and dataloaders
     if args.freeze_backbone:
-        student_train_dataset = PrecalculatedWikisplitDataset(
+        student_train_dataset = EmbeddingsDataset(
             get_precalculated_embeddings_dataset(
                 dataset_name="cl-nagoya/wikisplit-pp",
                 model_name="jinaai/jina-embeddings-v2-small-en",
                 split="train",
             )
         )
-        student_val_dataset = PrecalculatedWikisplitDataset(
+        student_val_dataset = EmbeddingsDataset(
             get_precalculated_embeddings_dataset(
                 dataset_name="cl-nagoya/wikisplit-pp",
                 model_name="jinaai/jina-embeddings-v2-small-en",
@@ -88,13 +88,13 @@ def main():
             )
         )
     else:
-        student_train_dataset = WikisplitDataset(
-            ds["train"],
+        student_train_dataset = TokenizedDataset(
+            ds["train"]["simple_original"],
             tokenizer=tokenizer,
             max_length=max_seq_length
         )
-        student_val_dataset = WikisplitDataset(
-            ds["validation"],
+        student_val_dataset = TokenizedDataset(
+            ds["validation"]["simple_original"],
             tokenizer=tokenizer,
             max_length=max_seq_length
         )
@@ -120,7 +120,7 @@ def main():
     )
 
     # Teacher datasets and dataloaders
-    teacher_train_dataset = PrecalculatedWikisplitDataset(
+    teacher_train_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
             dataset_name="cl-nagoya/wikisplit-pp",
             model_name="jinaai/jina-embeddings-v2-small-en",
@@ -138,7 +138,7 @@ def main():
         num_workers=4,
     )
 
-    teacher_val_dataset = PrecalculatedWikisplitDataset(
+    teacher_val_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
             dataset_name="cl-nagoya/wikisplit-pp",
             model_name="jinaai/jina-embeddings-v2-small-en",

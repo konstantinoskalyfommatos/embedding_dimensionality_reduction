@@ -1,9 +1,9 @@
 from torch.utils.data import Dataset
 import torch
 
-class WikisplitDataset(Dataset):
-    def __init__(self, ds, tokenizer, max_length):
-        self.sentences = ds["simple_original"]
+class TokenizedDataset(Dataset):
+    def __init__(self, sentences, tokenizer, max_length):
+        self.sentences = sentences
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -22,8 +22,8 @@ class WikisplitDataset(Dataset):
         return encoded["input_ids"].squeeze(0), encoded["attention_mask"].squeeze(0)
     
 
-class PrecalculatedWikisplitDataset(Dataset):
-    def __init__(self, embeddings):
+class EmbeddingsDataset(Dataset):
+    def __init__(self, embeddings: torch.Tensor):
         self.embeddings = embeddings
 
     def __len__(self):
