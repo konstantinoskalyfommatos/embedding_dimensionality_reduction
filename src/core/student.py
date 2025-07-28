@@ -23,14 +23,20 @@ class Student(nn.Module):
         self.device = device
         self.to(self.device)
 
-    def forward(self, input_ids, attention_mask, keep_zero_vector=True):
-        backbone_output = self.backbone(
-            {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask
-            }
-        )
-        embeddings = backbone_output["sentence_embedding"]
+    def forward(
+        self, 
+        x,
+        use_precalculated_embeddings=False,
+        keep_zero_vector=True
+    ):
+        if not use_precalculated_embeddings:
+            backbone_output = self.backbone(
+                {
+                    "input_ids": x[0],
+                    "attention_mask": x[1]
+                }
+            )
+            embeddings = backbone_output["sentence_embedding"]
 
         zero_vector = torch.zeros(
             (1, embeddings.shape[1]), 
@@ -47,34 +53,6 @@ class Student(nn.Module):
             return low_dim_embeddings
         else:
             return low_dim_embeddings[1:]
-        
-    def forward_precalculated_embeddings(
-        self, 
-        embeddings, 
-        keep_zero_vector=True
-    ):
-        """Forward pass using pre-calculated embeddings.
-        
-        Maps the embeddings to the low-dimensional space using the 
-        projection network.
-        """
-        assert self.freeze_backbone, (
-            "Cannot use pre-calculated embeddings when the student's backbone "
-            "is being finetuned, as the embeddings will change during training."
-        )
-
-        zero_vector = torch.zeros(
-            (1, embeddings.shape[1]), 
-            device=embeddings.device
-        )
-        embeddings = torch.cat([zero_vector, embeddings], dim=0)
-        
-        low_dim_embeddings = self.projection_net(embeddings)
-
-        if self.training or keep_zero_vector:
-            return low_dim_embeddings
-          
-        return low_dim_embeddings[1:]
     
     def _is_zero_vector_in_embeddings(self, embeddings):
         """Check if the first vector in the embeddings is a zero vector."""
@@ -105,11 +83,11 @@ class Student(nn.Module):
 
         return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask])
 
-    def compute_loss_fixed_weight(
+    def compute_loss(
         self, 
         student_vectors, 
         teacher_vectors, 
-        positional_loss_factor=0.3
+        positional_loss_factor=1.0
     ):
         """Computes the loss with a fixed weight for positional loss.
         
@@ -136,30 +114,5 @@ class Student(nn.Module):
         return (
             positional_loss_factor * positional_loss + 
             (1 - positional_loss_factor) * similarity_loss
-        )
-    
-    def compute_loss_adaptive_weight(self, student_vectors, teacher_vectors):
-        positional_loss = self._compute_positional_loss(
-            student_vectors, 
-            teacher_vectors
-        )
-
-        if self._is_zero_vector_in_embeddings(teacher_vectors):
-            teacher_vectors = teacher_vectors[1:]
-            student_vectors = student_vectors[1:]
-        similarity_loss = self._compute_similarity_loss(
-            student_vectors, 
-            teacher_vectors
-        )
-
-        pos_weight = 1.0 / (positional_loss.detach() + 1e-8)
-        sim_weight = 1.0 / (similarity_loss.detach() + 1e-8)
-        
-        total_weight = pos_weight + sim_weight
-        positional_loss_factor_adaptive = pos_weight / total_weight
-        
-        return (
-            positional_loss_factor_adaptive * positional_loss + 
-            (1 - positional_loss_factor_adaptive) * similarity_loss
         )
     

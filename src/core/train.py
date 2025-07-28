@@ -51,23 +51,24 @@ def train(
                     "backbone is being finetuned, as the embeddings will "
                     "change during training."
                 )
-                student_predictions = student.forward_precalculated_embeddings(
-                    student_batch.to(student.device)
-                )
+                x = student_batch.to(student.device)
             else:
                 input_ids, attention_mask = student_batch
-                student_predictions = student(
-                    input_ids.to(student.device), 
-                    attention_mask.to(student.device)
-                )
+                x = (input_ids.to(student.device), attention_mask.to(student.device))
 
-            teacher_targets = teacher.get_targets_from_precalculated_embeddings(
+            student_emb = student(
+                x,
+                keep_zero_vector=True,
+                use_precalculated_embeddings=use_precalculated_student_embeddings
+            )
+
+            teacher_emb = teacher.get_targets_from_precalculated_embeddings(
                 teacher_batch.to(student.device)
             )
 
-            loss = student.compute_loss_fixed_weight(
-                student_predictions,
-                teacher_targets,
+            loss = student.compute_loss(
+                student_emb,
+                teacher_emb,
                 positional_loss_factor=1.0
             )
             loss.backward()
