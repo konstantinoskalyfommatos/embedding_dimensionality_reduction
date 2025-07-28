@@ -30,7 +30,9 @@ def main():
     parser.add_argument("--low_dim_size", type=int, default=256, help="Low-dimensional size used during training")
     parser.add_argument("--hidden_size", type=int, default=None, help="Hidden size of the projection network")
     parser.add_argument("--batch_size", type=int, default=2048, help="Batch size for evaluation")
-    parser.add_argument("--positional_loss_factor", type=float, default=0.5, help="Factor for positional loss in evaluation")
+    parser.add_argument("--positional_loss_factor", type=float, default=0, help="Factor for positional loss in evaluation")
+    parser.add_argument("--dataset_name", type=str, default="cl-nagoya/wikisplit-pp", help="Name of the dataset to evaluate on")
+    parser.add_argument("--text_column", type=str, default="simple_original", help="Column name in the dataset containing the text data")
     args = parser.parse_args()
 
     PROJECT_ROOT = os.getenv("PROJECT_ROOT")
@@ -43,9 +45,9 @@ def main():
 
     print(f"Loading test set and model from {model_path}")
 
-    ds = load_dataset("cl-nagoya/wikisplit-pp")
+    ds = load_dataset(args.dataset_name)
     tokenizer = AutoTokenizer.from_pretrained('jinaai/jina-embeddings-v2-small-en', trust_remote_code=True)
-    max_seq_length = get_dataset_max_length("cl-nagoya/wikisplit-pp", tokenizer)
+    max_seq_length = get_dataset_max_length(args.dataset_name, tokenizer)
     print(f"Max sequence length: {max_seq_length}")
 
     # Student test dataset
@@ -66,7 +68,7 @@ def main():
     # Teacher test dataset
     teacher_test_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
-            dataset_name="cl-nagoya/wikisplit-pp",
+            dataset_path="cl-nagoya/wikisplit-pp",
             model_name="jinaai/jina-embeddings-v2-small-en",
             split="test",
         )

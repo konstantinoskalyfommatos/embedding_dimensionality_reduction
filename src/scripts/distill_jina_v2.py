@@ -34,14 +34,15 @@ def main():
     parser = ArgumentParser(description="Train a distilled Jina model")
     parser.add_argument("--low_dim_size", type=int, default=256, help="Size of the low-dimensional space")
     parser.add_argument("--hidden_size", type=int, default=None, help="Size of the hidden layer in the projection network")
-    parser.add_argument("--freeze_backbone", action='store_true', default=False , help="Whether to finetune the backbone model")
+    parser.add_argument("--freeze_backbone", action='store_true', default=False, help="Whether to finetune the backbone model")
     parser.add_argument("--lr", type=float, default=1e-4, help="Starting learning rate for training")
     parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
     parser.add_argument("--warmup_validation_epochs", type=int, default=10, help="Number of warmup epochs before computing validation loss")
     parser.add_argument("--early_stopping_patience", type=int, default=5, help="Patience for early stopping")
+    parser.add_argument("--dataset_path", type=str, default="cl-nagoya/wikisplit-pp", help="Name of the dataset to use for training")
+    parser.add_argument("--dataset_name", type=str, default=None, help="Name of the dataset to use for training (if different from dataset_path)")
+    parser.add_argument("--text_column", type=str, default="simple_original", help="Column name in the dataset containing the text data")
     args = parser.parse_args()
-
-    parser.parse_args()
 
     PROJECT_ROOT = os.getenv("PROJECT_ROOT")
     if not PROJECT_ROOT:
@@ -55,15 +56,13 @@ def main():
         f"We have set freeze_backbone={args.freeze_backbone}"
     )
 
-    ds = load_dataset("cl-nagoya/wikisplit-pp")
-
     # Find the maximum sentence length in the dataset
     tokenizer = AutoTokenizer.from_pretrained(
         'jinaai/jina-embeddings-v2-small-en', 
         trust_remote_code=True
     )
     max_seq_length = get_dataset_max_length(
-        "cl-nagoya/wikisplit-pp", 
+        args.dataset_path,
         tokenizer
     )
     print(f"Maximum sequence length for the dataset: {max_seq_length}")
@@ -75,26 +74,28 @@ def main():
     if args.freeze_backbone:
         student_train_dataset = EmbeddingsDataset(
             get_precalculated_embeddings_dataset(
-                dataset_name="cl-nagoya/wikisplit-pp",
+                dataset_path=args.dataset_path,
                 model_name="jinaai/jina-embeddings-v2-small-en",
                 split="train",
             )
         )
         student_val_dataset = EmbeddingsDataset(
             get_precalculated_embeddings_dataset(
-                dataset_name="cl-nagoya/wikisplit-pp",
+                dataset_path=args.dataset_path,
                 model_name="jinaai/jina-embeddings-v2-small-en",
                 split="validation",
             )
         )
     else:
+        ds = load_dataset(args.dataset_path, args.dataset_name)
+
         student_train_dataset = TokenizedDataset(
-            ds["train"]["simple_original"],
+            ds["train"][args.text_column],
             tokenizer=tokenizer,
             max_length=max_seq_length
         )
         student_val_dataset = TokenizedDataset(
-            ds["validation"]["simple_original"],
+            ds["validation"][args.text_column],
             tokenizer=tokenizer,
             max_length=max_seq_length
         )
@@ -122,7 +123,7 @@ def main():
     # Teacher datasets and dataloaders
     teacher_train_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
-            dataset_name="cl-nagoya/wikisplit-pp",
+            dataset_path=args.dataset_path,
             model_name="jinaai/jina-embeddings-v2-small-en",
             split="train",
         )           
@@ -140,7 +141,7 @@ def main():
 
     teacher_val_dataset = EmbeddingsDataset(
         get_precalculated_embeddings_dataset(
-            dataset_name="cl-nagoya/wikisplit-pp",
+            dataset_path=args.dataset_path,
             model_name="jinaai/jina-embeddings-v2-small-en",
             split="validation",
         )
