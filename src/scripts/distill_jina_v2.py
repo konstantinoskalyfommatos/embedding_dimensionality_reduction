@@ -22,9 +22,8 @@ from core.teacher import Teacher
 from core.train import train
 from core.eval_functions import eval_intrinsic_original_vs_projected_space
 
-from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset
+from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset, get_precalculated_embeddings_dataset
 from utils.datasets_info import get_dataset_max_length
-from utils.embedding_precalculation import get_precalculated_embeddings_dataset
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 load_dotenv()

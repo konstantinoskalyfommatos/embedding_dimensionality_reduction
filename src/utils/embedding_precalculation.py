@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.utils.custom_datasets import TokenizedDataset, EmbeddingsDataset
-from utils.datasets_info import get_dataset_max_length
 
 
 def calculate_embeddings(
