@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 import torch.nn as nn
 import torch
 
+from torch.utils.data import ConcatDataset
+
 from core.train import train_distilled_model
 from utils.custom_datasets import get_precalculated_embeddings_dataset
 
@@ -54,7 +56,7 @@ def parse_arguments():
                        help="Learning rate")
     parser.add_argument("--warmup_steps", type=int, default=1000,
                        help="Number of warmup steps")
-    parser.add_argument("--evaluation_steps", type=int, default=10000,
+    parser.add_argument("--evaluation_steps", type=int, default=20000,
                        help="Steps between evaluations")
     parser.add_argument("--positional_loss_factor", type=float, default=0.5,
                        help="Weight for positional vs similarity loss")
@@ -87,6 +89,8 @@ def main():
     
     output_path = os.path.join(args.output_dir, args.model_name)
     os.makedirs(output_path, exist_ok=True)
+
+    args.dataset_path = "allenai/c4"
     
     logger.info(f"Starting distillation training:")
     logger.info(f"  Teacher model: {args.teacher_model}")
@@ -97,32 +101,58 @@ def main():
     # Create student model
     logger.info("Creating student model")
     # Our student model is simply a projection layer
-    student_model = nn.Sequential(
-        nn.Linear(args.teacher_model_output_dim, args.hidden_dim),
-        nn.ReLU(),
-        nn.Linear(args.hidden_dim, args.target_dim),
-    )
+    match args.target_dim:
+        case 32:
+            student_model = nn.Sequential(
+                nn.Linear(args.teacher_model_output_dim, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, 32),
+            )
+        case 3:
+            student_model = nn.Sequential(
+                nn.Linear(args.teacher_model_output_dim, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, 16),
+                nn.ReLU(),
+                nn.Linear(16, 3),
+            )
+    student_model.to(torch.device("cuda"))
     
-    # Prepare datasets
-    logger.info("Preparing datasets...")
-    train_dataset = get_precalculated_embeddings_dataset(
-        dataset_path=args.dataset_path,
-        model_name=args.teacher_model,
-        split="train",
-    )
-    val_dataset = get_precalculated_embeddings_dataset(
-        dataset_path=args.dataset_path,
-        model_name=args.teacher_model,
-        split="validation",
-    )
-    
+    logger.info("Preparing datasets")
+    train_datasets = []
+    val_datasets = []
+    for dataset_name in ["allenai/c4", "cl-nagoya/wikisplit-pp"]:
+        train_datasets.append(get_precalculated_embeddings_dataset(
+            dataset_path=dataset_name,
+            model_name=args.teacher_model,
+            split="train",
+        ))
+        val_datasets.append(get_precalculated_embeddings_dataset(
+            dataset_path=dataset_name,
+            model_name=args.teacher_model,
+            split="validation",
+        ))
+
+    train_dataset = ConcatDataset(train_datasets)
+    val_dataset = ConcatDataset(val_datasets)
+
     # Training parameters
     optimizer_params = {'lr': args.learning_rate}
 
     # Train the model
-    logger.info("Starting training...")
+    logger.info("Starting training")
     trained_model = train_distilled_model(
         student_model=student_model,
+        backbone_model_path=args.teacher_model,
+        target_dim=args.target_dim,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         train_batch_size=args.target_dim,  # Batch size depends on target_dim
@@ -137,8 +167,6 @@ def main():
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
     )
-    
-    logger.info(f"Training completed! Model saved to: {output_path}")
 
 
 if __name__ == "__main__":

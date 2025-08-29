@@ -7,11 +7,19 @@ from torch.utils.data import Dataset
 from typing import Any
 import logging
 
+from sentence_transformers import SentenceTransformer, util
+from datasets import load_dataset
+import numpy as np
+from scipy.stats import spearmanr
+
 from transformers import TrainingArguments
 from transformers import Trainer
 import torch.nn as nn
 
-from src.utils.embed_functions import embed_points_isometric
+from utils.embed_functions import embed_points_isometric
+from core.distilled_sentence_transformer import DistilledSentenceTransformer
+from core.eval import evaluate_sts
+
 
 logger = logging.getLogger(__name__)
     
@@ -30,11 +38,22 @@ class SimilarityTrainer(Trainer):
     def __init__(
         self,
         *args,
+        target_dim: int,
+        backbone_model_path: str,
         positional_loss_factor: float = 1.0,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.positional_loss_factor = positional_loss_factor
+        self.target_dim = target_dim
+
+        self.distilled_sentece_transformer = DistilledSentenceTransformer.from_pretrained(
+            model_name_or_path=backbone_model_path,
+            projection=self.model,
+            output_dim=target_dim,
+            freeze_backbone=True,
+            device=self.args.device
+        )
         self.model_accepts_loss_kwargs = False
 
     def compute_loss(self, model, inputs, *args, **kwargs) -> torch.Tensor:
@@ -90,6 +109,13 @@ class SimilarityTrainer(Trainer):
         )
     
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        sts_metrics = self._evaluate_sts(metric_key_prefix)
+        intrinsic_metrics = self._evaluate_intrinsic(eval_dataset, metric_key_prefix)
+        metrics = {**sts_metrics, **intrinsic_metrics}
+        self.log(metrics)
+        return metrics
+
+    def _evaluate_intrinsic(self, eval_dataset=None, metric_key_prefix="eval"):
         """Returns the intrinsic evaluation loss on the evaluation dataset."""
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
         
@@ -154,11 +180,25 @@ class SimilarityTrainer(Trainer):
         
         metrics = {f"{metric_key_prefix}_loss": avg_loss}
         
-        # Log metrics
-        self.log(metrics)
-        
         return metrics
     
+    def _evaluate_sts(self, metric_key_prefix="eval", split="dev"):
+        """Evaluate the model using STS benchmark.
+        
+        Split can be 'dev' or 'test'.
+        """
+        self.distilled_sentece_transformer.update_projection(self.model)
+        self.distilled_sentece_transformer.eval()
+
+        spearmanr_corr = evaluate_sts(
+            model=self.distilled_sentece_transformer,
+            split=split,
+            batch_size=self.args.eval_batch_size or 1024
+        )
+
+        metrics = {f"{metric_key_prefix}_spearmanr": spearmanr_corr}
+        return metrics
+
     def _compute_positional_loss(
         self, 
         student_vectors: torch.Tensor, 
@@ -189,6 +229,8 @@ class SimilarityTrainer(Trainer):
 
 def train_distilled_model(
     student_model: nn.Module,
+    backbone_model_path: str,
+    target_dim: int,
     train_dataset: Dataset,
     val_dataset: Dataset,
     train_batch_size: int,
@@ -209,7 +251,6 @@ def train_distilled_model(
         num_train_epochs=epochs,
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=val_batch_size,
-        warmup_steps=warmup_steps,
         weight_decay=weight_decay,
         eval_strategy="steps" if evaluation_steps > 0 and val_dataset is not None else "no",
         eval_steps=evaluation_steps if val_dataset is not None else None,
@@ -218,11 +259,13 @@ def train_distilled_model(
         # Model saving configurations - match eval strategy
         save_strategy="steps" if evaluation_steps > 0 and val_dataset is not None else "epoch",
         save_steps=evaluation_steps if val_dataset is not None else None,
-        save_total_limit=3,
+        save_total_limit=1,
         load_best_model_at_end=True if val_dataset is not None else False,
-        metric_for_best_model="eval_loss",  
-        greater_is_better=False,  # Lower loss is better
+        metric_for_best_model="eval_spearmanr",
+        greater_is_better=True,
         dataloader_drop_last=True,
+        disable_tqdm=False,
+        warmup_ratio=0.1,
     )
 
     # Create optimizer
@@ -246,11 +289,17 @@ def train_distilled_model(
         args=args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
+        target_dim=target_dim,
+        backbone_model_path=backbone_model_path,
         positional_loss_factor=positional_loss_factor,
         optimizers=(optimizer, lr_scheduler),
-        data_collator=collate_embeddings,  # New
+        data_collator=collate_embeddings,
     )
 
     trainer.train()
+
+    logger.info("Training complete. Testing on STS:")
+    test_metrics = trainer._evaluate_sts()
+    logger.info(f"Test Spearman correlation: {test_metrics['eval_spearmanr']:.4f}")
 
     return student_model
