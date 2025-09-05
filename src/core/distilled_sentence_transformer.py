@@ -1,8 +1,3 @@
-"""
-Distilled Sentence Transformer model that integrates with the Sentence Transformers framework.
-This wrapper allows our custom distillation approach to be used as a standard SentenceTransformer model.
-"""
-
 import torch
 import torch.nn as nn
 from sentence_transformers import SentenceTransformer
@@ -49,113 +44,105 @@ class DistilledSentenceTransformer(SentenceTransformer):
     with the standard Sentence Transformers framework, providing a familiar API.
     """
     
-    @classmethod
-    def from_pretrained(
-        cls,
+    def __init__(
+        self,
         model_name_or_path: str,
         projection: nn.Module,
         output_dim: int,
-        freeze_backbone: bool = True,
         device: str = "cuda",
-        trust_remote_code: bool = True,
+        freeze_backbone: bool = True,
         **kwargs
     ):
         """
-        Create a DistilledSentenceTransformer from a pretrained model.
-        
-        Args:
-            model_name_or_path: Path to the base model or HuggingFace model name
-            projection: The projection network module
-            output_dim: Target dimensionality for the distilled embeddings
-            freeze_backbone: Whether to freeze the backbone during training
-            device: Device to use ('cuda', 'cpu', etc.)
+        Initialize a DistilledSentenceTransformer.
         """
-        base_model = SentenceTransformer(
-            model_name_or_path,
-            device=device,
-            trust_remote_code=trust_remote_code,
-            **kwargs
-        )
+        base_model = SentenceTransformer(model_name_or_path, device=device, trust_remote_code=True, **kwargs)
+        projection_head = ProjectionHead(projection, output_dim=output_dim)  
+        modules = list(base_model._modules.values()) + [projection_head]
+        super().__init__(modules=modules, device=device)
+
+        self.output_dim = output_dim
+        self.freeze_backbone = freeze_backbone
         
-        # Create instance and copy over the modules
-        instance = cls.__new__(cls)
-        
-        # Copy all attributes from the base model
-        instance.__dict__.update(base_model.__dict__)
-        
-        # Add our custom attributes
-        instance.output_dim = output_dim
-        instance.freeze_backbone = freeze_backbone
-        
-        # Create and add the projection head
-        projection_head = ProjectionHead(projection, output_dim=output_dim)
-        instance._modules[str(len(instance._modules))] = projection_head
-        instance.projection_head = projection_head
-        
-        # Freeze backbone if requested
         if freeze_backbone:
-            instance._freeze_backbone()
-        
-        return instance
-    
-    def __init__(self, *args, **kwargs):
-        # This should not be called directly - use from_pretrained instead
-        raise RuntimeError(
-            "Use DistilledSentenceTransformer.from_pretrained() instead of __init__()"
-        )
+            self._freeze_backbone()
+
+    @property
+    def projection_head(self) -> ProjectionHead:
+        """
+        A property to dynamically find and return the ProjectionHead module.
+        This avoids storing a separate attribute that could conflict with the
+        nn.Module's submodule registration.
+        """
+        for module in self._modules.values():
+            if isinstance(module, ProjectionHead):
+                return module
+        raise AttributeError("ProjectionHead not found in model modules.")
     
     def _freeze_backbone(self):
-        """Freeze all parameters except the projection head."""
-        for name, param in self.named_parameters():
-            if 'projection_head' not in name:
-                param.requires_grad = False
-    
-    def encode(
-        self,
-        sentences: Union[str, List[str]],
-        batch_size: int = 32,
-        show_progress_bar: bool = None,
-        output_value: str = 'sentence_embedding',
-        convert_to_numpy: bool = True,
-        convert_to_tensor: bool = False,
-        device: str = None,
-        normalize_embeddings: bool = False,
-        **kwargs
-    ) -> Union[List[torch.Tensor], np.ndarray, torch.Tensor]:
         """
-        Encode sentences to embeddings using the distilled model.
-        This method overrides the parent encode method to use our custom projection.
+        Freeze all parameters except those in the projection head.
+        This is a more robust way to freeze layers without relying on names.
         """
-        return super().encode(
-            sentences=sentences,
-            batch_size=batch_size,
-            show_progress_bar=show_progress_bar,
-            output_value=output_value,
-            convert_to_numpy=convert_to_numpy,
-            convert_to_tensor=convert_to_tensor,
-            device=device,
-            normalize_embeddings=normalize_embeddings,
-            **kwargs
-        )
-    
+        # First, freeze all parameters in the model
+        for param in self.parameters():
+            param.requires_grad = False
+        
+        # Then, unfreeze only the parameters within the projection head
+        for param in self.projection_head.parameters():
+            param.requires_grad = True
+
     def load_checkpoint(self, path: str, **kwargs) -> 'DistilledSentenceTransformer':
         """
         Load a saved distilled model checkpoint.
-        
-        Example path: storage/models/jina-embeddings-v2-small-en_distilled_3/checkpoint-1680000/model.safetensors
         """
         if not os.path.exists(path):
             raise ValueError(f"Path {path} does not exist.")
         
         checkpoint = load_file(path)
-        self.projection_head.load_state_dict(checkpoint, strict=False)
+        
+        # Fix key mismatch by adding 'projection.' prefix to keys
+        fixed_checkpoint = {}
+        for key, value in checkpoint.items():
+            # Add 'projection.' prefix if not already present
+            if not key.startswith('projection.'):
+                new_key = f'projection.{key}'
+            else:
+                new_key = key
+            
+            # Move tensor to correct device
+            if isinstance(value, torch.Tensor):
+                fixed_checkpoint[new_key] = value.to(self.device)
+            else:
+                fixed_checkpoint[new_key] = value
+        
+        # Load the fixed checkpoint
+        missing_keys, unexpected_keys = self.projection_head.load_state_dict(fixed_checkpoint, strict=False)
+        
+        if missing_keys:
+            print(f"Warning: Missing keys when loading checkpoint: {missing_keys}")
+        if unexpected_keys:
+            print(f"Warning: Unexpected keys when loading checkpoint: {unexpected_keys}")
+        
         self.to(self.device)
         return self
     
-    def update_projection(self, projection: nn.Module):
-        """Update the projection head with a new projection module."""
-        self.projection_head.projection = projection
-    
+    def change_projection_head(self, projection: nn.Module):
+        """
+        Change the projection head with a new projection module. This method now
+        correctly replaces the module without adding a duplicate.
+        """
+        new_projection_head = ProjectionHead(projection, output_dim=self.output_dim)
+        
+        # Find and replace the existing projection head in the _modules dictionary
+        for module_key in self._modules.keys():
+            if isinstance(self._modules[module_key], ProjectionHead):
+                self._modules[module_key] = new_projection_head
+                self._modules[module_key].to(self.device)
+                return
+
+        raise RuntimeError("Could not find a ProjectionHead module to replace.")
+
     def get_sentence_embedding_dimension(self) -> int:
         """Return the dimension of the final embeddings."""
         return self.projection_head.output_dim

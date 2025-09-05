@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def evaluate_sts(
     model: SentenceTransformer, 
     split: str = "test",
-    batch_size: int = 1024
+    batch_size: int = 2048
 ) -> float:
     """
     Evaluate a SentenceTransformer model on the STSBenchmark English dataset.
@@ -29,8 +29,8 @@ def evaluate_sts(
     dataset = load_dataset("stsb_multi_mt", name="en", split=split)
 
     # Extract sentence pairs and labels
-    sentences1 = list(dataset["sentence1"])  # Convert to list
-    sentences2 = list(dataset["sentence2"])  # Convert to list
+    sentences1 = list(dataset["sentence1"])
+    sentences2 = list(dataset["sentence2"])
     labels = np.array(dataset["similarity_score"]).astype(float)
 
     with torch.no_grad():
@@ -63,22 +63,34 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    path = f"{args.trained_model_base_path}{args.target_dim}"
-    last_path = os.listdir(path)[-1]
-    model_path = os.path.join(path, last_path, "model.safetensors")
-    logger.info(f"Loading model from {model_path}")
+    model_path = None
+    try:
+        path = f"{args.trained_model_base_path}{args.target_dim}"
+        last_path = os.listdir(path)[-1]
+        model_path = os.path.join(path, last_path, "model.safetensors")
+        logger.info(f"Loading model from {model_path}")
+    except FileNotFoundError:
+        pass
 
     match args.target_dim:
         case 32:
             projection_head = nn.Sequential(
                 nn.Linear(512, 256),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(256, 128),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(128, 64),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(64, 32),
             )
+            # projection_head = nn.Sequential(
+            #     nn.Linear(512, 128),
+            #     nn.GELU(),
+            #     nn.Linear(128, 32),
+            # )
+            # projection_head = nn.Sequential(
+            #     nn.Linear(512, 32),
+            # )
         case 3:
             projection_head = nn.Sequential(
                 nn.Linear(512, 256),
@@ -91,18 +103,22 @@ if __name__ == "__main__":
                 nn.ReLU(),
                 nn.Linear(16, 3),
             )
+        case _:
+            projection_head = nn.Linear(512, args.target_dim)
 
-    # custom_model = DistilledSentenceTransformer.from_pretrained(
-    #     model_name_or_path=args.backbone_model_path,
-    #     projection=projection_head,
-    #     output_dim=args.target_dim,
-    #     freeze_backbone=True
-    # )
-    # custom_model.eval()
+    custom_model = DistilledSentenceTransformer(
+        model_name_or_path=args.backbone_model_path,
+        projection=projection_head,
+        output_dim=args.target_dim,
+        freeze_backbone=True
+    )
+    if model_path:
+        custom_model.load_checkpoint(model_path)
 
-    custom_model = SentenceTransformer(args.backbone_model_path, device="cuda", trust_remote_code=True)
+    # custom_model = SentenceTransformer(args.backbone_model_path, device="cuda", trust_remote_code=True)
+
     custom_model.eval()
 
     # Evaluate the model
-    score = evaluate_sts(custom_model, split="test", batch_size=1024)
+    score = evaluate_sts(custom_model, split="test", batch_size=2048)
     logger.info(f"Final Spearman correlation on STS test set: {score:.4f}")

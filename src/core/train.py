@@ -7,12 +7,7 @@ from torch.utils.data import Dataset
 from typing import Any
 import logging
 
-from sentence_transformers import SentenceTransformer, util
-from datasets import load_dataset
-import numpy as np
-from scipy.stats import spearmanr
-
-from transformers import TrainingArguments
+from transformers import TrainingArguments, EarlyStoppingCallback
 from transformers import Trainer
 import torch.nn as nn
 
@@ -47,7 +42,7 @@ class SimilarityTrainer(Trainer):
         self.positional_loss_factor = positional_loss_factor
         self.target_dim = target_dim
 
-        self.distilled_sentece_transformer = DistilledSentenceTransformer.from_pretrained(
+        self.distilled_sentece_transformer = DistilledSentenceTransformer(
             model_name_or_path=backbone_model_path,
             projection=self.model,
             output_dim=target_dim,
@@ -92,6 +87,7 @@ class SimilarityTrainer(Trainer):
                 student_embeddings_with_zero, 
                 teacher_vectors
             )
+            positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
             # Remove zero vector for similarity loss
@@ -102,6 +98,7 @@ class SimilarityTrainer(Trainer):
                 student_no_zero, 
                 teacher_no_zero
             )
+            similarity_loss.requires_grad_(True)
         
         return (
             self.positional_loss_factor * positional_loss + 
@@ -187,7 +184,8 @@ class SimilarityTrainer(Trainer):
         
         Split can be 'dev' or 'test'.
         """
-        self.distilled_sentece_transformer.update_projection(self.model)
+        self.distilled_sentece_transformer.change_projection_head(self.model)
+        
         self.distilled_sentece_transformer.eval()
 
         spearmanr_corr = evaluate_sts(
@@ -294,12 +292,13 @@ def train_distilled_model(
         positional_loss_factor=positional_loss_factor,
         optimizers=(optimizer, lr_scheduler),
         data_collator=collate_embeddings,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     trainer.train()
 
     logger.info("Training complete. Testing on STS:")
-    test_metrics = trainer._evaluate_sts()
+    test_metrics = trainer._evaluate_sts(split="test")
     logger.info(f"Test Spearman correlation: {test_metrics['eval_spearmanr']:.4f}")
 
     return student_model

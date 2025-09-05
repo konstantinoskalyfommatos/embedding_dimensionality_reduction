@@ -52,13 +52,13 @@ def parse_arguments():
     # Training configuration
     parser.add_argument("--epochs", type=int, default=10,
                        help="Number of training epochs")
-    parser.add_argument("--learning_rate", type=float, default=1e-4,
+    parser.add_argument("--learning_rate", type=float, default=1e-3,
                        help="Learning rate")
-    parser.add_argument("--warmup_steps", type=int, default=1000,
+    parser.add_argument("--warmup_steps", type=int, default=10000,
                        help="Number of warmup steps")
-    parser.add_argument("--evaluation_steps", type=int, default=20000,
+    parser.add_argument("--evaluation_steps", type=int, default=31000,
                        help="Steps between evaluations")
-    parser.add_argument("--positional_loss_factor", type=float, default=0.5,
+    parser.add_argument("--positional_loss_factor", type=float, default=1.0,
                        help="Weight for positional vs similarity loss")
     
     # Output configuration
@@ -105,23 +105,28 @@ def main():
         case 32:
             student_model = nn.Sequential(
                 nn.Linear(args.teacher_model_output_dim, 256),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(256, 128),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(128, 64),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(64, 32),
             )
+            # student_model = nn.Sequential(
+            #     nn.Linear(args.teacher_model_output_dim, 128),
+            #     nn.GELU(),
+            #     nn.Linear(128, 32),
+            # )
         case 3:
             student_model = nn.Sequential(
                 nn.Linear(args.teacher_model_output_dim, 256),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(256, 128),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(128, 64),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(64, 16),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(16, 3),
             )
     student_model.to(torch.device("cuda"))
@@ -129,20 +134,24 @@ def main():
     logger.info("Preparing datasets")
     train_datasets = []
     val_datasets = []
-    for dataset_name in ["allenai/c4", "cl-nagoya/wikisplit-pp"]:
+    for dataset_name in [
+        "allenai/c4", 
+        "cl-nagoya/wikisplit-pp"
+    ]:
         train_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
             model_name=args.teacher_model,
             split="train",
         ))
-        val_datasets.append(get_precalculated_embeddings_dataset(
+        train_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
             model_name=args.teacher_model,
             split="validation",
         ))
 
     train_dataset = ConcatDataset(train_datasets)
-    val_dataset = ConcatDataset(val_datasets)
+    val_dataset = []
+    # val_dataset = ConcatDataset(val_datasets)
 
     # Training parameters
     optimizer_params = {'lr': args.learning_rate}
