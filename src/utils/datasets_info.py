@@ -13,7 +13,7 @@ DATASETS_LENGTH_COUNT = {
     "allenai/c4": [  # en only
         {
             "tokenizer": "jinaai/jina-embeddings-v2-small-en",
-            "max_length": 200,  # We have set this limit manually
+            "max_length": 300,  # We have set this limit manually
         },
     ],
 }

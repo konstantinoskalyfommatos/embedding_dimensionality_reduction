@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import torch.nn as nn
 import os
 import torch
+import json
 import logging
 
 from core.distilled_sentence_transformer import DistilledSentenceTransformer
@@ -64,9 +65,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_path = None
+
     try:
         path = f"{args.trained_model_base_path}{args.target_dim}"
-        last_path = os.listdir(path)[-1]
+        last_path = sorted(os.listdir(path))[0]
         model_path = os.path.join(path, last_path, "model.safetensors")
         logger.info(f"Loading model from {model_path}")
     except FileNotFoundError:
@@ -74,34 +76,34 @@ if __name__ == "__main__":
 
     match args.target_dim:
         case 32:
-            projection_head = nn.Sequential(
-                nn.Linear(512, 256),
-                nn.GELU(),
-                nn.Linear(256, 128),
-                nn.GELU(),
-                nn.Linear(128, 64),
-                nn.GELU(),
-                nn.Linear(64, 32),
-            )
             # projection_head = nn.Sequential(
-            #     nn.Linear(512, 128),
+            #     nn.Linear(512, 256),
             #     nn.GELU(),
-            #     nn.Linear(128, 32),
+            #     nn.Linear(256, 128),
+            #     nn.GELU(),
+            #     nn.Linear(128, 64),
+            #     nn.GELU(),
+            #     nn.Linear(64, 32),
             # )
+            projection_head = nn.Sequential(
+                nn.Linear(512, 128),
+                nn.GELU(),
+                nn.Linear(128, 32),
+            )
             # projection_head = nn.Sequential(
             #     nn.Linear(512, 32),
             # )
+        case 16:
+            projection_head = nn.Sequential(
+                nn.Linear(512, 64),
+                nn.GELU(),
+                nn.Linear(64, 16),
+            )
         case 3:
             projection_head = nn.Sequential(
-                nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 64),
-                nn.ReLU(),
-                nn.Linear(64, 16),
-                nn.ReLU(),
-                nn.Linear(16, 3),
+                nn.Linear(512, 128),
+                nn.GELU(),
+                nn.Linear(128, 3),
             )
         case _:
             projection_head = nn.Linear(512, args.target_dim)

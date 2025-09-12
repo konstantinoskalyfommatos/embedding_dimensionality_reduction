@@ -15,6 +15,7 @@ from utils.embed_functions import embed_points_isometric
 from core.distilled_sentence_transformer import DistilledSentenceTransformer
 from core.eval import evaluate_sts
 
+torch.manual_seed(42)
 
 logger = logging.getLogger(__name__)
     
@@ -67,8 +68,7 @@ class SimilarityTrainer(Trainer):
 
         # inputs are the high dimensional vectors
         high_dim_zero_vector = torch.zeros((1, batch.shape[1]), device=batch.device)
-        high_dim_vectors_with_zero = torch.cat([high_dim_zero_vector, batch], dim=0)
-        teacher_vectors = embed_points_isometric(high_dim_vectors_with_zero)
+        teacher_embeddings_with_zero = torch.cat([high_dim_zero_vector, batch], dim=0)
 
         # Get student embeddings
         student_vectors = model(batch)
@@ -85,14 +85,14 @@ class SimilarityTrainer(Trainer):
         if self.positional_loss_factor > 0:
             positional_loss = self._compute_positional_loss(
                 student_embeddings_with_zero, 
-                teacher_vectors
+                teacher_embeddings_with_zero
             )
             positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
             # Remove zero vector for similarity loss
             student_no_zero = student_embeddings_with_zero[1:]
-            teacher_no_zero = teacher_vectors[1:]
+            teacher_no_zero = teacher_embeddings_with_zero[1:]
 
             similarity_loss = self._compute_similarity_loss(
                 student_no_zero, 
@@ -106,9 +106,10 @@ class SimilarityTrainer(Trainer):
         )
     
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        sts_metrics = self._evaluate_sts(metric_key_prefix)
+        # sts_metrics = self._evaluate_sts(metric_key_prefix)
         intrinsic_metrics = self._evaluate_intrinsic(eval_dataset, metric_key_prefix)
-        metrics = {**sts_metrics, **intrinsic_metrics}
+        # metrics = {**sts_metrics, **intrinsic_metrics}
+        metrics = intrinsic_metrics
         self.log(metrics)
         return metrics
 
@@ -222,7 +223,7 @@ class SimilarityTrainer(Trainer):
         teacher_sim_matrix = torch.matmul(teacher_vectors, teacher_vectors.T)
         
         mask = torch.triu(torch.ones_like(student_sim_matrix), diagonal=1).bool()
-        return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask])
+        return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask]) * 100
 
 
 def train_distilled_model(
@@ -234,15 +235,18 @@ def train_distilled_model(
     train_batch_size: int,
     val_batch_size: int,
     epochs: int = 10,
-    warmup_steps: int = 1000,
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
     optimizer_params: dict[str, Any] = {'lr': 1e-4},
-    scheduler: str = 'WarmupLinear',
     weight_decay: float = 0.01,
-    evaluation_steps: int = 1000,
+    evaluation_ratio: float = 0.5,
     output_path: str = None,
     positional_loss_factor: float = 1.0,
+    lr_scheduler_type: str = "linear",
 ) -> nn.Module:
+    
+    steps_per_epoch = len(train_dataset) // train_batch_size
+    evaluation_steps = max(1, int(steps_per_epoch * evaluation_ratio))
+
     # Create training arguments
     args = TrainingArguments(
         output_dir=output_path or "./output",
@@ -250,36 +254,26 @@ def train_distilled_model(
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=val_batch_size,
         weight_decay=weight_decay,
-        eval_strategy="steps" if evaluation_steps > 0 and val_dataset is not None else "no",
+        eval_strategy="steps" if val_dataset is not None else "no",
         eval_steps=evaluation_steps if val_dataset is not None else None,
         logging_dir="./logs",
         logging_strategy="epoch",
         # Model saving configurations - match eval strategy
-        save_strategy="steps" if evaluation_steps > 0 and val_dataset is not None else "epoch",
+        save_strategy="steps" if val_dataset is not None else "epoch",
         save_steps=evaluation_steps if val_dataset is not None else None,
-        save_total_limit=1,
+        save_total_limit=5,
         load_best_model_at_end=True if val_dataset is not None else False,
-        metric_for_best_model="eval_spearmanr",
+        # metric_for_best_model="eval_spearmanr",
+        metric_for_best_model="eval_loss",
         greater_is_better=True,
         dataloader_drop_last=True,
         disable_tqdm=False,
-        warmup_ratio=0.1,
+        warmup_ratio=0.0,
+        lr_scheduler_type=lr_scheduler_type,
     )
 
     # Create optimizer
     optimizer = optimizer_class(student_model.parameters(), **optimizer_params)
-    
-    # Create scheduler based on string parameter
-    total_steps = len(train_dataset) // train_batch_size * epochs
-    if scheduler == 'WarmupLinear':
-        from transformers import get_linear_schedule_with_warmup
-        lr_scheduler = get_linear_schedule_with_warmup(
-            optimizer=optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=total_steps
-        )
-    else:
-        lr_scheduler = None
 
     # Initialize custom trainer
     trainer = SimilarityTrainer(
@@ -290,15 +284,11 @@ def train_distilled_model(
         target_dim=target_dim,
         backbone_model_path=backbone_model_path,
         positional_loss_factor=positional_loss_factor,
-        optimizers=(optimizer, lr_scheduler),
+        optimizers=(optimizer, None),
         data_collator=collate_embeddings,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.0005)],
     )
 
     trainer.train()
-
-    logger.info("Training complete. Testing on STS:")
-    test_metrics = trainer._evaluate_sts(split="test")
-    logger.info(f"Test Spearman correlation: {test_metrics['eval_spearmanr']:.4f}")
 
     return student_model

@@ -1,8 +1,6 @@
 from torch.utils.data import Dataset
 import torch
-from sentence_transformers import SentenceTransformer
 import os
-from torch.utils.data import DataLoader
 
 
 class TokenizedDataset(Dataset):
@@ -35,28 +33,6 @@ class EmbeddingsDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.embeddings[idx]
-    
-
-def calculate_embeddings(
-    model: SentenceTransformer, 
-    dataloader: DataLoader, 
-    device="cuda"
-):
-    all_embeddings = []
-    with torch.no_grad():
-        for batch in dataloader:
-            input_ids, attention_mask = batch
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
-            
-            embeddings = model(
-                {
-                    "input_ids": input_ids, 
-                    "attention_mask": attention_mask
-                }
-            )["sentence_embedding"]
-            all_embeddings.append(embeddings.cpu())
-    return torch.cat(all_embeddings, dim=0)
 
 
 def get_precalculated_embeddings_dataset(

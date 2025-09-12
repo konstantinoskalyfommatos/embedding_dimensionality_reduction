@@ -50,17 +50,21 @@ def parse_arguments():
                        help="Maximum number of samples to use")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=10,
+    parser.add_argument("--epochs", type=int, default=5,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-3,
                        help="Learning rate")
-    parser.add_argument("--warmup_steps", type=int, default=10000,
-                       help="Number of warmup steps")
-    parser.add_argument("--evaluation_steps", type=int, default=31000,
-                       help="Steps between evaluations")
-    parser.add_argument("--positional_loss_factor", type=float, default=1.0,
+    parser.add_argument("--evaluation_ratio", type=float, default=0.25,
+                       help="Ratio of training steps to perform evaluation")
+    parser.add_argument("--positional_loss_factor", type=float, default=0.5,
                        help="Weight for positional vs similarity loss")
-    
+    parser.add_argument("--train_batch_size", type=int, default=2 * 8192,
+                       help="Batch size for training")
+    parser.add_argument("--val_batch_size", type=int, default=8192,
+                       help="Batch size for validation")
+    parser.add_argument("--lr_scheduler_type", type=str, default="linear",
+                       help="Learning rate scheduler type")
+
     # Output configuration
     parser.add_argument("--output_dir", type=str, default=None,
                        help="Output directory for saving the model")
@@ -103,31 +107,31 @@ def main():
     # Our student model is simply a projection layer
     match args.target_dim:
         case 32:
-            student_model = nn.Sequential(
-                nn.Linear(args.teacher_model_output_dim, 256),
-                nn.GELU(),
-                nn.Linear(256, 128),
-                nn.GELU(),
-                nn.Linear(128, 64),
-                nn.GELU(),
-                nn.Linear(64, 32),
-            )
             # student_model = nn.Sequential(
-            #     nn.Linear(args.teacher_model_output_dim, 128),
+            #     nn.Linear(args.teacher_model_output_dim, 256),
             #     nn.GELU(),
-            #     nn.Linear(128, 32),
+            #     nn.Linear(256, 128),
+            #     nn.GELU(),
+            #     nn.Linear(128, 64),
+            #     nn.GELU(),
+            #     nn.Linear(64, 32),
             # )
-        case 3:
             student_model = nn.Sequential(
-                nn.Linear(args.teacher_model_output_dim, 256),
+                nn.Linear(args.teacher_model_output_dim, 128),
                 nn.GELU(),
-                nn.Linear(256, 128),
-                nn.GELU(),
-                nn.Linear(128, 64),
+                nn.Linear(128, 32),
+            )
+        case 16:
+            student_model = nn.Sequential(
+                nn.Linear(args.teacher_model_output_dim, 64),
                 nn.GELU(),
                 nn.Linear(64, 16),
+            )
+        case 3:
+            student_model = nn.Sequential(
+                nn.Linear(args.teacher_model_output_dim, 128),
                 nn.GELU(),
-                nn.Linear(16, 3),
+                nn.Linear(128, 3),
             )
     student_model.to(torch.device("cuda"))
     
@@ -143,15 +147,14 @@ def main():
             model_name=args.teacher_model,
             split="train",
         ))
-        train_datasets.append(get_precalculated_embeddings_dataset(
+        val_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
             model_name=args.teacher_model,
             split="validation",
         ))
 
     train_dataset = ConcatDataset(train_datasets)
-    val_dataset = []
-    # val_dataset = ConcatDataset(val_datasets)
+    val_dataset = ConcatDataset(val_datasets)
 
     # Training parameters
     optimizer_params = {'lr': args.learning_rate}
@@ -164,17 +167,15 @@ def main():
         target_dim=args.target_dim,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
-        train_batch_size=args.target_dim,  # Batch size depends on target_dim
-        val_batch_size=8192,
+        train_batch_size=args.train_batch_size,
+        val_batch_size=args.val_batch_size,
         epochs=args.epochs,
-        warmup_steps=args.warmup_steps,
         optimizer_class=torch.optim.AdamW,
         optimizer_params=optimizer_params,
-        scheduler='WarmupLinear',
-        weight_decay=0.01,
-        evaluation_steps=args.evaluation_steps,
+        evaluation_ratio=args.evaluation_ratio,
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
+        lr_scheduler_type=args.lr_scheduler_type
     )
 
 
