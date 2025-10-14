@@ -26,7 +26,6 @@ def collate_embeddings(features):
     """
     if isinstance(features[0], dict):
         return {"input": torch.stack([f["input"] for f in features], dim=0)}
-    # features are tensors
     return {"input": torch.stack(features, dim=0)}
 
 
@@ -53,30 +52,15 @@ class SimilarityTrainer(Trainer):
         self.model_accepts_loss_kwargs = False
 
     def compute_loss(self, model, inputs, *args, **kwargs) -> torch.Tensor:
-        """
-        Compute the combined loss for distillation.
-        
-        Teacher embeddings lie in the low-dimensional space.
-        """
-        # Accept both dict and tensor batches
+        """Compute the combined loss for distillation."""
         if isinstance(inputs, dict):
-            batch = inputs["input"]
-            if batch is None:
+            high_dim_embeddings = inputs["input"]
+            if high_dim_embeddings is None:
                 raise ValueError("No input tensor found in batch. Expected key 'input'.")
         else:
-            batch = inputs
+            high_dim_embeddings = inputs
 
-        # inputs are the high dimensional vectors
-        high_dim_zero_vector = torch.zeros((1, batch.shape[1]), device=batch.device)
-        teacher_embeddings_with_zero = torch.cat([high_dim_zero_vector, batch], dim=0)
-
-        # Get student embeddings
-        student_vectors = model(batch)
-        low_dim_zero = torch.zeros((1, student_vectors.shape[1]), device=student_vectors.device)
-        student_embeddings_with_zero = torch.cat(
-            [low_dim_zero, student_vectors], 
-            dim=0
-        )
+        low_dim_embeddings = model(high_dim_embeddings)
 
         # Compute losses
         similarity_loss = 0.0
@@ -84,19 +68,15 @@ class SimilarityTrainer(Trainer):
         
         if self.positional_loss_factor > 0:
             positional_loss = self._compute_positional_loss(
-                student_embeddings_with_zero, 
-                teacher_embeddings_with_zero
+                low_dim_embeddings=low_dim_embeddings,
+                high_dim_embeddings=high_dim_embeddings
             )
             positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
-            # Remove zero vector for similarity loss
-            student_no_zero = student_embeddings_with_zero[1:]
-            teacher_no_zero = teacher_embeddings_with_zero[1:]
-
             similarity_loss = self._compute_similarity_loss(
-                student_no_zero, 
-                teacher_no_zero
+                low_dim_embeddings=low_dim_embeddings,
+                high_dim_embeddings=high_dim_embeddings
             )
             similarity_loss.requires_grad_(True)
         
@@ -106,10 +86,7 @@ class SimilarityTrainer(Trainer):
         )
     
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        # sts_metrics = self._evaluate_sts(metric_key_prefix)
-        intrinsic_metrics = self._evaluate_intrinsic(eval_dataset, metric_key_prefix)
-        # metrics = {**sts_metrics, **intrinsic_metrics}
-        metrics = intrinsic_metrics
+        metrics = self._evaluate_intrinsic(eval_dataset, metric_key_prefix)
         self.log(metrics)
         return metrics
 
@@ -130,39 +107,22 @@ class SimilarityTrainer(Trainer):
         
         with torch.no_grad():
             for features in eval_dataloader:
-                batch = features["input"] if isinstance(features, dict) else features
+                high_dim_embeddings = features["input"] if isinstance(features, dict) else features
 
-                teacher_vectors = batch
-                high_dim_zero = torch.zeros(
-                    (1, teacher_vectors.shape[1]), 
-                    device=teacher_vectors.device
-                )
-                teacher_vectors_with_zero = torch.cat(
-                    [high_dim_zero, teacher_vectors], 
-                    dim=0
-                )
-
-                student_vectors = model(batch)
-                low_dim_zero = torch.zeros(
-                    (1, student_vectors.shape[1]), 
-                    device=student_vectors.device
-                )
-                student_vectors_with_zero = torch.cat(
-                    [low_dim_zero, student_vectors], 
-                    dim=0
-                )
+                low_dim_embeddings = model(high_dim_embeddings)
 
                 similarity_loss = 0.0
                 positional_loss = 0.0
+
                 if self.positional_loss_factor > 0:
                     positional_loss = self._compute_positional_loss(
-                        student_vectors_with_zero, 
-                        teacher_vectors_with_zero
+                        low_dim_embeddings=low_dim_embeddings,
+                        high_dim_embeddings=high_dim_embeddings
                     )
                 if self.positional_loss_factor < 1:
                     similarity_loss = self._compute_similarity_loss(
-                        student_vectors_with_zero[1:], 
-                        teacher_vectors_with_zero[1:]
+                        low_dim_embeddings=low_dim_embeddings,
+                        high_dim_embeddings=high_dim_embeddings
                     )
                 
                 loss = (
@@ -170,7 +130,7 @@ class SimilarityTrainer(Trainer):
                     (1 - self.positional_loss_factor) * similarity_loss
                 )
 
-                batch_size = batch.shape[0]
+                batch_size = high_dim_embeddings.shape[0]
                 total_loss += loss.item() * batch_size
                 num_samples += batch_size
                 
@@ -179,65 +139,46 @@ class SimilarityTrainer(Trainer):
         metrics = {f"{metric_key_prefix}_loss": avg_loss}
         
         return metrics
-    
-    def _evaluate_sts(self, metric_key_prefix="eval", split="dev"):
-        """Evaluate the model using STS benchmark.
-        
-        Split can be 'dev' or 'test'.
-        """
-        self.distilled_sentece_transformer.change_projection_head(self.model)
-        
-        self.distilled_sentece_transformer.eval()
-
-        spearmanr_corr = evaluate_sts(
-            model=self.distilled_sentece_transformer,
-            split=split,
-            batch_size=self.args.eval_batch_size or 1024
-        )
-
-        metrics = {f"{metric_key_prefix}_spearmanr": spearmanr_corr}
-        return metrics
 
     def _compute_positional_loss(
         self, 
-        student_vectors: torch.Tensor, 
-        teacher_vectors: torch.Tensor
+        low_dim_embeddings: torch.Tensor, 
+        high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
         """Compute pairwise distance preservation loss."""
-        student_sq_dist = torch.cdist(student_vectors, student_vectors, p=2).pow(2)
-        teacher_sq_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2).pow(2)
+        low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
+        high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
         
         # Use triu_indices for better memory efficiency
-        n = student_sq_dist.size(0)
-        triu_indices = torch.triu_indices(n, n, offset=1, device=student_vectors.device)
+        n = low_dim_dist.size(0)
+        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
         
-        student_upper = student_sq_dist[triu_indices[0], triu_indices[1]]
-        teacher_upper = teacher_sq_dist[triu_indices[0], triu_indices[1]]
+        low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
+        high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
         
-        return torch.nn.functional.mse_loss(student_upper, teacher_upper)
+        return torch.nn.functional.mse_loss(low_dim_dist_upper, high_dim_dist_upper)
 
     def _compute_similarity_loss(
         self, 
-        student_vectors: torch.Tensor, 
-        teacher_vectors: torch.Tensor
+        low_dim_embeddings: torch.Tensor, 
+        high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
         """Compute pairwise cosine similarity preservation loss."""
-        # Normalize once and reuse
-        student_norm = torch.nn.functional.normalize(student_vectors, dim=1)
-        teacher_norm = torch.nn.functional.normalize(teacher_vectors, dim=1)
+        low_dim_norm = torch.nn.functional.normalize(low_dim_embeddings, dim=1)
+        high_dim_norm = torch.nn.functional.normalize(high_dim_embeddings, dim=1)
         
         # Compute similarity matrices
-        student_sim = torch.mm(student_norm, student_norm.t())
-        teacher_sim = torch.mm(teacher_norm, teacher_norm.t())
+        low_dim_sim = torch.mm(low_dim_norm, low_dim_norm.t())
+        high_dim_sim = torch.mm(high_dim_norm, high_dim_norm.t())
         
         # Use triu_indices for better memory efficiency
-        n = student_sim.size(0)
-        triu_indices = torch.triu_indices(n, n, offset=1, device=student_vectors.device)
+        n = low_dim_sim.size(0)
+        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
         
-        student_upper = student_sim[triu_indices[0], triu_indices[1]]
-        teacher_upper = teacher_sim[triu_indices[0], triu_indices[1]]
+        low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
+        high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
         
-        return torch.nn.functional.mse_loss(student_upper, teacher_upper) * 100
+        return torch.nn.functional.mse_loss(low_dim_sim_upper, high_dim_sim_upper) * 100
 
 
 def train_model(

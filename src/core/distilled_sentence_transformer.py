@@ -22,7 +22,7 @@ class ProjectionHead(nn.Module):
     def forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         embeddings = features['sentence_embedding']
         
-        # Add zero vector for isometric embedding
+        # Add zero vector for norm-preserving projection
         zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
         embeddings_with_zero = torch.cat([zero_vector, embeddings], dim=0)
         
@@ -128,10 +128,7 @@ class DistilledSentenceTransformer(SentenceTransformer):
         return self
     
     def change_projection_head(self, projection: nn.Module):
-        """
-        Change the projection head with a new projection module. This method now
-        correctly replaces the module without adding a duplicate.
-        """
+        """Change the projection head with a new projection module."""
         new_projection_head = ProjectionHead(projection, output_dim=self.output_dim)
         
         # Find and replace the existing projection head in the _modules dictionary

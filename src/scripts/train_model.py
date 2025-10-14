@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-def parse_arguments():
-    """Parse command line arguments."""
+def main():
+    """Main training function."""
     parser = argparse.ArgumentParser(description="Train a distilled sentence transformer model")
     
     # Model configuration
@@ -58,25 +58,16 @@ def parse_arguments():
     # Output configuration
     parser.add_argument("--output_dir", type=str, default=None,
                        help="Output directory for saving the model")
-    parser.add_argument("--model_name", type=str, default=None,
-                       help="Name for the saved model")
-    
-    return parser.parse_args()
 
-
-def main():
-    """Main training function."""
-    args = parse_arguments()
+    args = parser.parse_args()
     
     # Configure output directory
     if args.output_dir is None:
         args.output_dir = os.path.join(PROJECT_ROOT, "storage", "models")
     
-    if args.model_name is None:
-        teacher_name = args.backbone_model.split('/')[-1]
-        args.model_name = f"{teacher_name}_distilled_{args.target_dim}"
+    model_name = f"{args.backbone_model.split('/')[-1]}_distilled_{args.target_dim}"
     
-    output_path = os.path.join(args.output_dir, args.model_name)
+    output_path = os.path.join(args.output_dir, model_name)
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Starting distillation training:")
@@ -84,9 +75,7 @@ def main():
     logger.info(f"Target dimension: {args.target_dim}")
     logger.info(f"Output path: {output_path}")    
     
-    # Create student model
-    logger.info("Creating student model")
-    # Our student model is simply a projection layer
+    logger.info("Creating trainable projection")
     match args.target_dim:
         case 32:
             trainable_projection = nn.Sequential(
@@ -113,7 +102,6 @@ def main():
     val_datasets = []
     for dataset_name in [
         "allenai/c4", 
-        "cl-nagoya/wikisplit-pp"
     ]:
         train_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
