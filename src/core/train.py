@@ -204,30 +204,44 @@ class SimilarityTrainer(Trainer):
         teacher_vectors: torch.Tensor
     ) -> torch.Tensor:
         """Compute pairwise distance preservation loss."""
-        student_dist = torch.cdist(student_vectors, student_vectors, p=2)
-        teacher_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2)
+        student_sq_dist = torch.cdist(student_vectors, student_vectors, p=2).pow(2)
+        teacher_sq_dist = torch.cdist(teacher_vectors, teacher_vectors, p=2).pow(2)
         
-        mask = torch.triu(torch.ones_like(student_dist), diagonal=1).bool()
-        return nn.MSELoss()(student_dist[mask], teacher_dist[mask])
-    
+        # Use triu_indices for better memory efficiency
+        n = student_sq_dist.size(0)
+        triu_indices = torch.triu_indices(n, n, offset=1, device=student_vectors.device)
+        
+        student_upper = student_sq_dist[triu_indices[0], triu_indices[1]]
+        teacher_upper = teacher_sq_dist[triu_indices[0], triu_indices[1]]
+        
+        return torch.nn.functional.mse_loss(student_upper, teacher_upper)
+
     def _compute_similarity_loss(
         self, 
         student_vectors: torch.Tensor, 
         teacher_vectors: torch.Tensor
     ) -> torch.Tensor:
         """Compute pairwise cosine similarity preservation loss."""
-        student_vectors = nn.functional.normalize(student_vectors, dim=1)
-        teacher_vectors = nn.functional.normalize(teacher_vectors, dim=1)
+        # Normalize once and reuse
+        student_norm = torch.nn.functional.normalize(student_vectors, dim=1)
+        teacher_norm = torch.nn.functional.normalize(teacher_vectors, dim=1)
         
-        student_sim_matrix = torch.matmul(student_vectors, student_vectors.T)
-        teacher_sim_matrix = torch.matmul(teacher_vectors, teacher_vectors.T)
+        # Compute similarity matrices
+        student_sim = torch.mm(student_norm, student_norm.t())
+        teacher_sim = torch.mm(teacher_norm, teacher_norm.t())
         
-        mask = torch.triu(torch.ones_like(student_sim_matrix), diagonal=1).bool()
-        return nn.MSELoss()(student_sim_matrix[mask], teacher_sim_matrix[mask]) * 100
+        # Use triu_indices for better memory efficiency
+        n = student_sim.size(0)
+        triu_indices = torch.triu_indices(n, n, offset=1, device=student_vectors.device)
+        
+        student_upper = student_sim[triu_indices[0], triu_indices[1]]
+        teacher_upper = teacher_sim[triu_indices[0], triu_indices[1]]
+        
+        return torch.nn.functional.mse_loss(student_upper, teacher_upper) * 100
 
 
-def train_distilled_model(
-    student_model: nn.Module,
+def train_model(
+    trainable_projection: nn.Module,
     backbone_model_path: str,
     target_dim: int,
     train_dataset: Dataset,
@@ -265,19 +279,19 @@ def train_distilled_model(
         load_best_model_at_end=True if val_dataset is not None else False,
         # metric_for_best_model="eval_spearmanr",
         metric_for_best_model="eval_loss",
-        greater_is_better=True,
-        dataloader_drop_last=True,
+        greater_is_better=False,
+        dataloader_drop_last=False,
         disable_tqdm=False,
         warmup_ratio=0.0,
         lr_scheduler_type=lr_scheduler_type,
     )
 
     # Create optimizer
-    optimizer = optimizer_class(student_model.parameters(), **optimizer_params)
+    optimizer = optimizer_class(trainable_projection.parameters(), **optimizer_params)
 
     # Initialize custom trainer
     trainer = SimilarityTrainer(
-        model=student_model,
+        model=trainable_projection,
         args=args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
@@ -291,4 +305,4 @@ def train_distilled_model(
 
     trainer.train()
 
-    return student_model
+    return trainable_projection

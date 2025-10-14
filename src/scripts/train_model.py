@@ -8,15 +8,15 @@ that follows Sentence Transformers best practices and conventions.
 import os
 import argparse
 import logging
-from dotenv import load_dotenv
 
 import torch.nn as nn
 import torch
 
 from torch.utils.data import ConcatDataset
 
-from core.train import train_distilled_model
+from core.train import train_model
 from utils.custom_datasets import get_precalculated_embeddings_dataset
+from core.config import PROJECT_ROOT
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Disable tokenizers parallelism warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-load_dotenv()
 
 
 def parse_arguments():
@@ -32,33 +31,24 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a distilled sentence transformer model")
     
     # Model configuration
-    parser.add_argument("--teacher_model", type=str, default="jinaai/jina-embeddings-v2-small-en",
-                       help="Teacher model name or path")
-    parser.add_argument("--teacher_model_output_dim", type=int, default=512,)
+    parser.add_argument("--backbone_model", type=str, default="jinaai/jina-embeddings-v2-small-en",
+                       help="Backbone model name or path")
+    parser.add_argument("--backbone_model_output_dim", type=int, default=512,)
     parser.add_argument("--target_dim", type=int, default=32,
                        help="Target dimension for distilled embeddings")
     parser.add_argument("--hidden_dim", type=int, default=128,
                        help="Hidden dimension for projection network")
-    # Dataset configuration
-    parser.add_argument("--dataset_path", type=str, default="cl-nagoya/wikisplit-pp",
-                       help="HuggingFace dataset path")
-    parser.add_argument("--dataset_name", type=str, default=None,
-                       help="Dataset configuration name")
-    parser.add_argument("--text_column", type=str, default="simple_original",
-                       help="Text column name in the dataset")
-    parser.add_argument("--max_samples", type=int, default=None,
-                       help="Maximum number of samples to use")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=5,
+    parser.add_argument("--epochs", type=int, default=2,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-3,
                        help="Learning rate")
-    parser.add_argument("--evaluation_ratio", type=float, default=0.25,
+    parser.add_argument("--evaluation_ratio", type=float, default=0.250,
                        help="Ratio of training steps to perform evaluation")
-    parser.add_argument("--positional_loss_factor", type=float, default=0.5,
+    parser.add_argument("--positional_loss_factor", type=float, default=1,
                        help="Weight for positional vs similarity loss")
-    parser.add_argument("--train_batch_size", type=int, default=2 * 8192,
+    parser.add_argument("--train_batch_size", type=int, default=8192,
                        help="Batch size for training")
     parser.add_argument("--val_batch_size", type=int, default=8192,
                        help="Batch size for validation")
@@ -78,62 +68,45 @@ def main():
     """Main training function."""
     args = parse_arguments()
     
-    # Set up project root
-    PROJECT_ROOT = os.getenv("PROJECT_ROOT")
-    if not PROJECT_ROOT:
-        raise ValueError("PROJECT_ROOT environment variable not set")
-    
     # Configure output directory
     if args.output_dir is None:
         args.output_dir = os.path.join(PROJECT_ROOT, "storage", "models")
     
     if args.model_name is None:
-        teacher_name = args.teacher_model.split('/')[-1]
+        teacher_name = args.backbone_model.split('/')[-1]
         args.model_name = f"{teacher_name}_distilled_{args.target_dim}"
     
     output_path = os.path.join(args.output_dir, args.model_name)
     os.makedirs(output_path, exist_ok=True)
-
-    args.dataset_path = "allenai/c4"
     
     logger.info(f"Starting distillation training:")
-    logger.info(f"  Teacher model: {args.teacher_model}")
-    logger.info(f"  Target dimension: {args.target_dim}")
-    logger.info(f"  Dataset: {args.dataset_path}")
-    logger.info(f"  Output path: {output_path}")    
+    logger.info(f"Teacher model: {args.backbone_model}")
+    logger.info(f"Target dimension: {args.target_dim}")
+    logger.info(f"Output path: {output_path}")    
     
     # Create student model
     logger.info("Creating student model")
     # Our student model is simply a projection layer
     match args.target_dim:
         case 32:
-            # student_model = nn.Sequential(
-            #     nn.Linear(args.teacher_model_output_dim, 256),
-            #     nn.GELU(),
-            #     nn.Linear(256, 128),
-            #     nn.GELU(),
-            #     nn.Linear(128, 64),
-            #     nn.GELU(),
-            #     nn.Linear(64, 32),
-            # )
-            student_model = nn.Sequential(
-                nn.Linear(args.teacher_model_output_dim, 128),
+            trainable_projection = nn.Sequential(
+                nn.Linear(args.backbone_model_output_dim, 128),
                 nn.GELU(),
                 nn.Linear(128, 32),
             )
         case 16:
-            student_model = nn.Sequential(
-                nn.Linear(args.teacher_model_output_dim, 64),
+            trainable_projection = nn.Sequential(
+                nn.Linear(args.backbone_model_output_dim, 64),
                 nn.GELU(),
                 nn.Linear(64, 16),
             )
         case 3:
-            student_model = nn.Sequential(
-                nn.Linear(args.teacher_model_output_dim, 128),
+            trainable_projection = nn.Sequential(
+                nn.Linear(args.backbone_model_output_dim, 128),
                 nn.GELU(),
                 nn.Linear(128, 3),
             )
-    student_model.to(torch.device("cuda"))
+    trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
     train_datasets = []
@@ -144,12 +117,12 @@ def main():
     ]:
         train_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
-            model_name=args.teacher_model,
+            model_name=args.backbone_model,
             split="train",
         ))
         val_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
-            model_name=args.teacher_model,
+            model_name=args.backbone_model,
             split="validation",
         ))
 
@@ -161,9 +134,9 @@ def main():
 
     # Train the model
     logger.info("Starting training")
-    trained_model = train_distilled_model(
-        student_model=student_model,
-        backbone_model_path=args.teacher_model,
+    trained_model = train_model(
+        trainable_projection=trainable_projection,
+        backbone_model_path=args.backbone_model,
         target_dim=args.target_dim,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
