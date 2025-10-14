@@ -1,62 +1,18 @@
-from datasets import load_dataset
-from sentence_transformers import SentenceTransformer
 from argparse import ArgumentParser
+import torch
 import torch.nn as nn
 import os
-import torch
-import mteb
-from sentence_transformers.evaluation import (
-    EmbeddingSimilarityEvaluator,
-)
 import logging
 
-from core.distilled_sentence_transformer import DistilledSentenceTransformer
-from core.config import PROJECT_ROOT
+from utils.distilled_sentence_transformer import DistilledSentenceTransformer
+from utils.eval import evaluate_sts, evaluate_retrieval
+
 
 # Set random seed for reproducibility
 torch.manual_seed(42)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def evaluate_sts(
-    model: SentenceTransformer, 
-    split: str = "test",
-    batch_size: int = 2048
-) -> float:
-    """
-    Evaluate a SentenceTransformer model on the STSBenchmark English dataset
-    using the high-level EmbeddingSimilarityEvaluator.
-    """
-    dataset = load_dataset("stsb_multi_mt", name="en", split=split)
-
-    sentences1 = list(dataset["sentence1"])
-    sentences2 = list(dataset["sentence2"])
-    labels = [float(x) for x in dataset["similarity_score"]]
-
-    evaluator = EmbeddingSimilarityEvaluator(
-        sentences1,
-        sentences2,
-        labels,
-        name=f"stsb_{split}",
-        batch_size=batch_size,
-        show_progress_bar=True,
-    )
-
-    result = evaluator(model, output_path=None)
-    return float(result.get("spearman", next(iter(result.values()))))
-
-
-def evaluate_retrieval(
-    model: SentenceTransformer, 
-    model_name: str,
-):
-    tasks = mteb.get_tasks(tasks=["ArguAna"])
-    evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(model, output_folder=f"{PROJECT_ROOT}/results/{model_name}", batch_size=4)
-    return results
-
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on STSBenchmark")
@@ -123,18 +79,11 @@ if __name__ == "__main__":
     if model_path:
         custom_model.load_checkpoint(model_path)
 
-    # custom_model = SentenceTransformer(args.backbone_model_path, device="cuda", trust_remote_code=True)
-
     custom_model.eval()
 
-    print(custom_model.similarity(
-        custom_model.encode("This is a very good day", convert_to_tensor=True),
-        custom_model.encode("Today is a good day", convert_to_tensor=True)
-    ))
-
     # Evaluate the model
-    # sts_score = evaluate_sts(custom_model, split="test", batch_size=2048)
-    # logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
+    sts_score = evaluate_sts(custom_model, split="test", batch_size=2048)
+    logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    # retrieval_score = evaluate_retrieval(custom_model, model_name=f"{args.backbone_model_path.replace('/', '-')}_{args.target_dim}")
-    # logger.info(f"Final retrieval results: {retrieval_score}")
+    retrieval_score = evaluate_retrieval(custom_model, model_name=f"{args.backbone_model_path.replace('/', '-')}_{args.target_dim}")
+    logger.info(f"Final retrieval results: {retrieval_score}")

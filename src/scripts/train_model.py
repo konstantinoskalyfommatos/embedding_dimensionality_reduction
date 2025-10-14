@@ -14,9 +14,9 @@ import torch
 
 from torch.utils.data import ConcatDataset
 
-from core.train import train_model
+from utils.train import train_model
 from utils.custom_datasets import get_precalculated_embeddings_dataset
-from core.config import PROJECT_ROOT
+from utils.config import PROJECT_ROOT
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

@@ -11,7 +11,8 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer  
 from src.utils.custom_datasets import TokenizedDataset
-from dotenv import load_dotenv
+
+from utils.config import PROJECT_ROOT
 
 
 def calculate_embeddings(
@@ -51,7 +52,7 @@ def precalculate_embeddings(
         return len(text.split()) < max_len
 
     output_base_path = os.path.join(
-        os.getenv("PROJECT_ROOT"),
+        PROJECT_ROOT,
         "storage/precalculated_embeddings",
         dataset_path.split("/")[-1],
         model_name.replace("/", "_")
@@ -114,8 +115,6 @@ if __name__ == "__main__":
     parser.add_argument("--text_column", type=str, default="simple_original")
     parser.add_argument("--batch_size", type=int, default=1024)
     args = parser.parse_args()
-
-    load_dotenv()
 
     precalculate_embeddings(
         model_name=args.model_name,

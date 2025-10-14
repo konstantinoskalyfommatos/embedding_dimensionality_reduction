@@ -11,9 +11,7 @@ from transformers import TrainingArguments, EarlyStoppingCallback
 from transformers import Trainer
 import torch.nn as nn
 
-from utils.embed_functions import embed_points_isometric
-from core.distilled_sentence_transformer import DistilledSentenceTransformer
-from core.eval import evaluate_sts
+from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 
 torch.manual_seed(42)
 

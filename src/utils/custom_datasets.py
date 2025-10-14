@@ -1,8 +1,9 @@
 from torch.utils.data import Dataset
-from typing import Any
 from transformers import AutoTokenizer
 import torch
 import os
+
+from utils.config import PROJECT_ROOT
 
 
 class TokenizedDataset(Dataset):
@@ -48,7 +49,7 @@ def get_precalculated_embeddings_dataset(
     split: str, 
 ):
     output_path = os.path.join(
-        os.getenv("PROJECT_ROOT"),
+        PROJECT_ROOT,
         "storage",
         "precalculated_embeddings",
         dataset_path.split("/")[-1],

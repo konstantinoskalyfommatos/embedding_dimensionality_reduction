@@ -1,12 +1,10 @@
 import torch
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
+from utils.config import PROJECT_ROOT
 
-ROOT_PATH = os.getenv("PROJECT_ROOT")
 embeddings_path = os.path.join(
-    ROOT_PATH, 
+    PROJECT_ROOT, 
     "storage/precalculated_embeddings/c4/jinaai_jina-embeddings-v2-small-en/train_embeddings.pt"
 )
 
