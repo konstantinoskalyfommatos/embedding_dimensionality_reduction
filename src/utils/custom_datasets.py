@@ -1,10 +1,17 @@
 from torch.utils.data import Dataset
+from typing import Any
+from transformers import AutoTokenizer
 import torch
 import os
 
 
 class TokenizedDataset(Dataset):
-    def __init__(self, sentences, tokenizer, max_length):
+    def __init__(
+        self, 
+        sentences: list[str], 
+        tokenizer: AutoTokenizer, 
+        max_length: int
+    ):
         self.sentences = sentences
         self.tokenizer = tokenizer
         self.max_length = max_length

@@ -10,7 +10,6 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer  
-from utils.datasets_info import get_dataset_max_length
 from src.utils.custom_datasets import TokenizedDataset
 from dotenv import load_dotenv
 
@@ -94,7 +93,7 @@ def precalculate_embeddings(
         tokenized_dataset = TokenizedDataset(
             [ex[text_column] for ex in filtered_examples],
             tokenizer=tokenizer,
-            max_length=get_dataset_max_length(dataset_path, tokenizer)
+            max_length=312
         )
         dataloader = DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=False)
 
