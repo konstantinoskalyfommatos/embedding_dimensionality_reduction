@@ -119,7 +119,6 @@ if __name__ == "__main__":
         model_name_or_path=args.backbone_model_path,
         projection=projection_head,
         output_dim=args.target_dim,
-        freeze_backbone=True
     )
     if model_path:
         custom_model.load_checkpoint(model_path)

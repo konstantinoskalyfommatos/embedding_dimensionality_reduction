@@ -46,7 +46,6 @@ class SimilarityTrainer(Trainer):
             model_name_or_path=backbone_model_path,
             projection=self.model,
             output_dim=target_dim,
-            freeze_backbone=True,
             device=self.args.device
         )
         self.model_accepts_loss_kwargs = False

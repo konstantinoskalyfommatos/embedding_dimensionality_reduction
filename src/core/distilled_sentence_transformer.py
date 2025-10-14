@@ -19,29 +19,20 @@ class ProjectionHead(nn.Module):
         self.projection = projection
         self.output_dim = output_dim
     
-    def forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        embeddings = features['sentence_embedding']
-        
-        # Add zero vector for norm-preserving projection
-        zero_vector = torch.zeros((1, embeddings.shape[1]), device=embeddings.device)
-        embeddings_with_zero = torch.cat([zero_vector, embeddings], dim=0)
-        
-        # Project to lower dimension
-        projected = self.projection(embeddings_with_zero)
-        
-        # Remove zero vector for final output
-        projected_without_zero = projected[1:]
+    def forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:        
+        """Projects into lower dimensionality space"""
         
         features.update({
-            'sentence_embedding': projected_without_zero,
+            'sentence_embedding': self.projection(features['sentence_embedding']),
         })
         return features
 
 class DistilledSentenceTransformer(SentenceTransformer):
-    """
-    A SentenceTransformer wrapper for our distilled models.
-    This class extends SentenceTransformer to integrate our custom distillation approach
-    with the standard Sentence Transformers framework, providing a familiar API.
+    """A SentenceTransformer wrapper for our distilled models.
+    
+    This class extends SentenceTransformer to integrate our 
+    custom distillation approach with the standard Sentence 
+    Transformers framework, providing a familiar API.
     """
     
     def __init__(
@@ -50,7 +41,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
         projection: nn.Module,
         output_dim: int,
         device: str = "cuda",
-        freeze_backbone: bool = True,
         **kwargs
     ):
         """
@@ -62,10 +52,12 @@ class DistilledSentenceTransformer(SentenceTransformer):
         super().__init__(modules=modules, device=device)
 
         self.output_dim = output_dim
-        self.freeze_backbone = freeze_backbone
         
-        if freeze_backbone:
-            self._freeze_backbone()
+        # Freeze the only backbone parameters
+        for param in self.parameters():
+            param.requires_grad = False
+        for param in self.projection_head.parameters():
+            param.requires_grad = True
 
     @property
     def projection_head(self) -> ProjectionHead:
@@ -78,19 +70,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
             if isinstance(module, ProjectionHead):
                 return module
         raise AttributeError("ProjectionHead not found in model modules.")
-    
-    def _freeze_backbone(self):
-        """
-        Freeze all parameters except those in the projection head.
-        This is a more robust way to freeze layers without relying on names.
-        """
-        # First, freeze all parameters in the model
-        for param in self.parameters():
-            param.requires_grad = False
-        
-        # Then, unfreeze only the parameters within the projection head
-        for param in self.projection_head.parameters():
-            param.requires_grad = True
 
     def load_checkpoint(self, path: str, **kwargs) -> 'DistilledSentenceTransformer':
         """
