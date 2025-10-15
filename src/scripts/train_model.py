@@ -40,7 +40,7 @@ def main():
                        help="Hidden dimension for projection network")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=2,
+    parser.add_argument("--epochs", type=int, default=3,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-3,
                        help="Learning rate")
@@ -60,14 +60,10 @@ def main():
                        help="Output directory for saving the model")
 
     args = parser.parse_args()
-    
-    # Configure output directory
-    if args.output_dir is None:
-        args.output_dir = os.path.join(PROJECT_ROOT, "storage", "models")
-    
+        
     model_name = f"{args.backbone_model.split('/')[-1]}_distilled_{args.target_dim}"
     
-    output_path = os.path.join(args.output_dir, model_name)
+    output_path = os.path.join(PROJECT_ROOT, "storage", "models", model_name)
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Starting distillation training:")

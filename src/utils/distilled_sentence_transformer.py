@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Union, Optional
-import numpy as np
 from safetensors.torch import load_file
 import os
 
@@ -19,7 +17,7 @@ class ProjectionHead(nn.Module):
         self.projection = projection
         self.output_dim = output_dim
     
-    def forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:        
+    def forward(self, features: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:        
         """Projects into lower dimensionality space"""
         
         features.update({
@@ -52,6 +50,8 @@ class DistilledSentenceTransformer(SentenceTransformer):
         super().__init__(modules=modules, device=device)
 
         self.output_dim = output_dim
+
+        self._model_name = f"{model_name_or_path.replace('/', '-')}_{output_dim}"
         
         # Freeze the only backbone parameters
         for param in self.parameters():
@@ -70,6 +70,10 @@ class DistilledSentenceTransformer(SentenceTransformer):
             if isinstance(module, ProjectionHead):
                 return module
         raise AttributeError("ProjectionHead not found in model modules.")
+
+    @property
+    def model_name(self):
+        return self._model_name
 
     def load_checkpoint(self, path: str, **kwargs) -> 'DistilledSentenceTransformer':
         """
