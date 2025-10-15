@@ -153,7 +153,11 @@ class SimilarityTrainer(Trainer):
         low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
         high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
         
-        return torch.nn.functional.mse_loss(low_dim_dist_upper, high_dim_dist_upper)
+        return torch.nn.functional.mse_loss(
+            low_dim_dist_upper, 
+            high_dim_dist_upper, 
+            reduction="mean"
+        )
 
     def _compute_similarity_loss(
         self, 
@@ -174,8 +178,12 @@ class SimilarityTrainer(Trainer):
         
         low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
         high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
-        
-        return torch.nn.functional.mse_loss(low_dim_sim_upper, high_dim_sim_upper) * 100
+
+        return torch.nn.functional.mse_loss(
+            low_dim_sim_upper, 
+            high_dim_sim_upper, 
+            reduction="mean"
+        ) * 100
 
 
 def train_model(
