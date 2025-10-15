@@ -14,6 +14,7 @@ torch.manual_seed(42)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on STSBenchmark")
     parser.add_argument(
@@ -81,9 +82,14 @@ if __name__ == "__main__":
 
     custom_model.eval()
 
+    if args.use_random_projection:
+        model_name = custom_model.model_name + "_random"
+    else:
+        model_name = custom_model.model_name
+
     # Evaluate the model
-    sts_score = evaluate_sts(custom_model, split="test", batch_size=2048)
+    sts_score = evaluate_sts(custom_model, model_name=model_name, batch_size=2048)
     logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    retrieval_score = evaluate_retrieval(custom_model, model_name=f"{args.backbone_model_path.replace('/', '-')}_{args.target_dim}")
-    logger.info(f"Final retrieval results: {retrieval_score}")
+    # retrieval_score = evaluate_retrieval(custom_model, model_name=model_name, batch_size=4)
+    # logger.info(f"Final retrieval results: {retrieval_score}")

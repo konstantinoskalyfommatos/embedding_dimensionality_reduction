@@ -26,7 +26,7 @@ if __name__ == "__main__":
     model.eval()
 
     # Evaluate the model
-    sts_score = evaluate_sts(model, split="test", batch_size=2048)
+    sts_score = evaluate_sts(model, model_name=f"{args.backbone_model_path.replace('/', '-')}", batch_size=2048)
     logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
     retrieval_score = evaluate_retrieval(model, model_name=f"{args.backbone_model_path.replace('/', '-')}")
