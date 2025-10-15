@@ -62,3 +62,25 @@ def get_precalculated_embeddings_dataset(
 
     embeddings = torch.load(output_path)
     return EmbeddingsDataset(embeddings)
+
+
+def get_dataset_length(
+    dataset_path: str, 
+    model_name: str,
+    split: str, 
+):
+    dataset = get_precalculated_embeddings_dataset(
+        dataset_path=dataset_path,
+        model_name=model_name,
+        split=split,
+    )
+    return len(dataset)
+    
+
+if __name__ == "__main__":
+    d = get_precalculated_embeddings_dataset(
+            dataset_path="allenai/c4",
+            model_name="jinaai/jina-embeddings-v2-small-en",
+            split="train",
+        )
+    print(len(d))

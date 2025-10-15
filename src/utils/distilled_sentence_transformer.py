@@ -53,7 +53,7 @@ class DistilledSentenceTransformer(SentenceTransformer):
 
         self._model_name = f"{model_name_or_path.replace('/', '-')}_{output_dim}"
         
-        # Freeze the only backbone parameters
+        # Freeze only the backbone parameters
         for param in self.parameters():
             param.requires_grad = False
         for param in self.projection_head.parameters():
@@ -61,8 +61,8 @@ class DistilledSentenceTransformer(SentenceTransformer):
 
     @property
     def projection_head(self) -> ProjectionHead:
-        """
-        A property to dynamically find and return the ProjectionHead module.
+        """A property to dynamically find and return the ProjectionHead module.
+
         This avoids storing a separate attribute that could conflict with the
         nn.Module's submodule registration.
         """
@@ -76,9 +76,7 @@ class DistilledSentenceTransformer(SentenceTransformer):
         return self._model_name
 
     def load_checkpoint(self, path: str, **kwargs) -> 'DistilledSentenceTransformer':
-        """
-        Load a saved distilled model checkpoint.
-        """
+        """Loads a saved distilled model checkpoint."""
         if not os.path.exists(path):
             raise ValueError(f"Path {path} does not exist.")
         
@@ -126,3 +124,4 @@ class DistilledSentenceTransformer(SentenceTransformer):
     def get_sentence_embedding_dimension(self) -> int:
         """Return the dimension of the final embeddings."""
         return self.projection_head.output_dim
+    
