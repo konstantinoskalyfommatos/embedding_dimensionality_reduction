@@ -3,9 +3,10 @@ import torch
 import torch.nn as nn
 import os
 import logging
+from utils.config import PROJECT_ROOT
 
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
-from utils.eval import evaluate_sts, evaluate_retrieval
+from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification
 
 
 # Set random seed for reproducibility
@@ -18,31 +19,37 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on STSBenchmark")
     parser.add_argument(
-        "--backbone_model_path", type=str, 
+        "--backbone_model", type=str, 
         help="Name or path of the backbone SentenceTransformer model",
         default="jinaai/jina-embeddings-v2-small-en"
     )
-    parser.add_argument(
-        "--trained_model_base_path", type=str, 
-        help="Path to the distilled model",
-        default="storage/models/jina-embeddings-v2-small-en_distilled_"
-    )
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
+    parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
+    parser.add_argument("--train_batch_size", type=int, help="Batch size used for training")
     parser.add_argument("--use_random_projection", action="store_true", help="Use random projection head")
 
     args = parser.parse_args()
 
     logger.info(f"Args: {args}")
 
-    model_path = None
+    safetensors_path = None
 
+    # Load a trained projection head
     try:
-        path = f"{args.trained_model_base_path}{args.target_dim}"
-        last_path = sorted(os.listdir(path), key=lambda x: int(x.split('-')[-1]))[-1]
-        model_path = os.path.join(path, last_path, "model.safetensors")
-        logger.info(f"Loading model from {model_path}")
-    except FileNotFoundError:
-        pass
+        trained_path = os.path.join(
+            PROJECT_ROOT, 
+            "storage/models", 
+            f"{args.backbone_model.split('/')[-1]}"
+            f"_distilled_{args.target_dim}"
+            f"_batch_{args.train_batch_size}"
+            f"_poslossfactor_{float(args.positional_loss_factor)}"
+        )
+        last_checkpoint = sorted(os.listdir(trained_path), key=lambda x: int(x.split('-')[-1]))[-1]
+        safetensors_path = os.path.join(trained_path, last_checkpoint, "model.safetensors")
+        logger.info(f"Loading model from {safetensors_path}")
+    except FileNotFoundError as e:
+        if not args.use_random_projection:
+            raise FileNotFoundError(e)
 
     if args.use_random_projection:
         projection_head = nn.Linear(512, args.target_dim)
@@ -73,23 +80,30 @@ if __name__ == "__main__":
     print(projection_head)
 
     custom_model = DistilledSentenceTransformer(
-        model_name_or_path=args.backbone_model_path,
+        model_name_or_path=args.backbone_model,
         projection=projection_head,
         output_dim=args.target_dim,
     )
-    if model_path:
-        custom_model.load_checkpoint(model_path)
+    if not args.use_random_projection:
+        custom_model.load_checkpoint(safetensors_path)
 
     custom_model.eval()
 
     if args.use_random_projection:
-        model_name = custom_model.model_name + "_random"
+        model_name = os.path.join(
+            f"{args.backbone_model.split('/')[-1]}"
+            f"_distilled_{args.target_dim}"
+            "_random"
+        )
     else:
-        model_name = custom_model.model_name
+        model_name = trained_path.split("storage/models")[-1]
 
     # Evaluate the model
     sts_score = evaluate_sts(custom_model, model_name=model_name, batch_size=2048)
     logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    # retrieval_score = evaluate_retrieval(custom_model, model_name=model_name, batch_size=4)
-    # logger.info(f"Final retrieval results: {retrieval_score}")
+    retrieval_score = evaluate_retrieval(custom_model, model_name=model_name, batch_size=4)
+    logger.info(f"Final retrieval results: {retrieval_score}")
+
+    classification_score = evaluate_classification(custom_model, model_name=model_name, batch_size=32)
+    logger.info(f"Final classification results: {classification_score}")
