@@ -3,8 +3,9 @@ import torch
 import torch.nn as nn
 import os
 import logging
-from utils.config import PROJECT_ROOT
+import json
 
+from utils.config import PROJECT_ROOT
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification
 
@@ -14,6 +15,30 @@ torch.manual_seed(42)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def load_best_model(model_dir: str, custom_model: DistilledSentenceTransformer):
+    """Load the best model checkpoint based on eval_loss."""
+    
+    last_checkpoint = sorted(os.listdir(trained_path), key=lambda x: int(x.split('-')[-1]))[-1]
+    last_state_filepath = os.path.join(model_dir, last_checkpoint, "trainer_state.json")
+    with open(last_state_filepath) as f:
+        last_state = json.load(f)
+
+    best_metric = last_state["best_metric"]
+    best_model_checkpoint = last_state["best_model_checkpoint"]
+
+    logger.info(
+        f"Loading safetensors from checkpoint: {best_model_checkpoint} "
+        f"with best metric: {best_metric}"
+    )
+    custom_model.load_checkpoint(
+        os.path.join(
+            best_model_checkpoint,
+            "model.safetensors"
+        )
+    )
+    return custom_model
 
 
 if __name__ == "__main__":
@@ -29,28 +54,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_random_projection", action="store_true", help="Use random projection head")
 
     args = parser.parse_args()
-
     logger.info(f"Args: {args}")
-
-    safetensors_path = None
-
-    # Load a trained projection head
-    try:
-        trained_path = os.path.join(
-            PROJECT_ROOT, 
-            "storage/models", 
-            f"{args.backbone_model.split('/')[-1]}"
-            f"_distilled_{args.target_dim}"
-            f"_batch_{args.train_batch_size}"
-            f"_poslossfactor_{float(args.positional_loss_factor)}"
-        )
-        last_checkpoint = sorted(os.listdir(trained_path), key=lambda x: int(x.split('-')[-1]))[-1]
-        safetensors_path = os.path.join(trained_path, last_checkpoint, "model.safetensors")
-        logger.info(f"Loading model from {safetensors_path}")
-    except FileNotFoundError as e:
-        if not args.use_random_projection:
-            raise FileNotFoundError(e)
-
+    
     if args.use_random_projection:
         projection_head = nn.Linear(512, args.target_dim)
 
@@ -84,10 +89,6 @@ if __name__ == "__main__":
         projection=projection_head,
         output_dim=args.target_dim,
     )
-    if not args.use_random_projection:
-        custom_model.load_checkpoint(safetensors_path)
-
-    custom_model.eval()
 
     if args.use_random_projection:
         model_name = os.path.join(
@@ -96,7 +97,18 @@ if __name__ == "__main__":
             "_random"
         )
     else:
+        trained_path = os.path.join(
+            PROJECT_ROOT, 
+            "storage/models", 
+            f"{args.backbone_model.split('/')[-1]}"
+            f"_distilled_{args.target_dim}"
+            f"_batch_{args.train_batch_size}"
+            f"_poslossfactor_{float(args.positional_loss_factor)}"
+        )
+        custom_model = load_best_model(trained_path, custom_model)
         model_name = trained_path.split("storage/models")[-1]
+
+    custom_model.eval()
 
     # Evaluate the model
     sts_score = evaluate_sts(custom_model, model_name=model_name, batch_size=2048)

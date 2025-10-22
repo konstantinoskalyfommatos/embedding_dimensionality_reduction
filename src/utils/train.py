@@ -134,58 +134,58 @@ class SimilarityTrainer(Trainer):
         
         return metrics
 
-    # def _compute_positional_loss(
-    #     self, 
-    #     low_dim_embeddings: torch.Tensor, 
-    #     high_dim_embeddings: torch.Tensor
-    # ) -> torch.Tensor:
-    #     """Compute pairwise distance preservation loss."""
-    #     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
-    #     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-        
-    #     # Use triu_indices for better memory efficiency
-    #     n = low_dim_dist.size(0)
-    #     triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-        
-    #     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
-    #     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
-        
-    #     return torch.nn.functional.mse_loss(
-    #         low_dim_dist_upper, 
-    #         high_dim_dist_upper, 
-    #         reduction="mean"
-    #     )
     def _compute_positional_loss(
-        self,
-        low_dim_embeddings: torch.Tensor,
-        high_dim_embeddings: torch.Tensor,
-        eps: float = 1e-8
+        self, 
+        low_dim_embeddings: torch.Tensor, 
+        high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
-        """Compute pairwise distance preservation loss with inverse-distance weighting.
-        
-        Pairs that are close in the high-dimensional space are given more weight.
-        """
-        # Compute pairwise Euclidean distances
+        """Compute pairwise distance preservation loss."""
         low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
         high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-
-        # Use only the upper triangle (excluding diagonal) for efficiency
+        
+        # Use triu_indices for better memory efficiency
         n = low_dim_dist.size(0)
         triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-
+        
         low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
         high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
+        
+        return torch.nn.functional.mse_loss(
+            low_dim_dist_upper, 
+            high_dim_dist_upper, 
+            reduction="mean"
+        )
+    # def _compute_positional_loss(
+    #     self,
+    #     low_dim_embeddings: torch.Tensor,
+    #     high_dim_embeddings: torch.Tensor,
+    #     eps: float = 1e-8
+    # ) -> torch.Tensor:
+    #     """Compute pairwise distance preservation loss with inverse-distance weighting.
+        
+    #     Pairs that are close in the high-dimensional space are given more weight.
+    #     """
+    #     # Compute pairwise Euclidean distances
+    #     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
+    #     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
 
-        # Inverse-distance weights: small high-dim distances → larger weight
-        weights = 1.0 / (high_dim_dist_upper + eps)
+    #     # Use only the upper triangle (excluding diagonal) for efficiency
+    #     n = low_dim_dist.size(0)
+    #     triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
 
-        # Normalize weights so loss scale stays consistent across batches
-        weights = weights / (weights.sum() + eps)
+    #     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
+    #     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
 
-        # Weighted mean squared error between pairwise distances
-        loss = torch.sum(weights * (low_dim_dist_upper - high_dim_dist_upper) ** 2)
+    #     # Inverse-distance weights: small high-dim distances → larger weight
+    #     weights = 1.0 / (high_dim_dist_upper + eps)
 
-        return loss
+    #     # Normalize weights so loss scale stays consistent across batches
+    #     weights = weights / (weights.sum() + eps)
+
+    #     # Weighted mean squared error between pairwise distances
+    #     loss = torch.sum(weights * (low_dim_dist_upper - high_dim_dist_upper) ** 2)
+
+    #     return loss
 
 
     def _compute_similarity_loss(

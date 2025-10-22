@@ -40,14 +40,10 @@ def train_model(
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
     optimizer_params: dict[str, Any] = {'lr': 1e-4},
     weight_decay: float = 0.00,
-    evaluation_ratio: float = 0.5,
     output_path: str = None,
     positional_loss_factor: float = 1.0,
     lr_scheduler_type: str = "linear",
-) -> nn.Module:
-    
-    steps_per_epoch = len(train_dataset) // train_batch_size
-    evaluation_steps = max(1, int(steps_per_epoch * evaluation_ratio))
+) -> None:
 
     # Create training arguments
     args = TrainingArguments(
@@ -56,16 +52,12 @@ def train_model(
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=val_batch_size,
         weight_decay=weight_decay,
-        eval_strategy="steps" if val_dataset is not None else "no",
-        eval_steps=evaluation_steps if val_dataset is not None else None,
+        eval_strategy="epoch" if val_dataset is not None else "no",
         logging_dir="./logs",
         logging_strategy="epoch",
-        # Model saving configurations - match eval strategy
-        save_strategy="steps" if val_dataset is not None else "epoch",
-        save_steps=evaluation_steps if val_dataset is not None else None,
-        save_total_limit=5,
-        load_best_model_at_end=True if val_dataset is not None else False,
-        # metric_for_best_model="eval_spearmanr",
+        save_strategy="epoch",
+        save_total_limit=2,
+        load_best_model_at_end=False,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         dataloader_drop_last=False,
@@ -90,13 +82,12 @@ def train_model(
         data_collator=collate_embeddings,
         callbacks=[
             EarlyStoppingCallback(
-                early_stopping_patience=3, 
+                early_stopping_patience=1, 
                 early_stopping_threshold=0.005
             )
         ],
     )
     trainer.train()
-    return trainable_projection
 
 
 def main():
@@ -111,17 +102,15 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=5,
+    parser.add_argument("--epochs", type=int, default=3,
                        help="Number of training epochs")
-    parser.add_argument("--learning_rate", type=float, default=1e-3,
+    parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
-    parser.add_argument("--evaluation_ratio", type=float, default=0.5,
-                       help="Ratio of training steps to perform evaluation")
     parser.add_argument("--positional_loss_factor", type=float, default=1,
                        help="Weight for positional vs similarity loss")
     parser.add_argument("--train_batch_size", type=int, default=8192 * 2,
                        help="Batch size for training")
-    parser.add_argument("--val_batch_size", type=int, default=8192,
+    parser.add_argument("--val_batch_size", type=int, default=8192 * 2,
                        help="Batch size for validation")
     parser.add_argument("--lr_scheduler_type", type=str, default="linear",
                        help="Learning rate scheduler type")
@@ -190,7 +179,7 @@ def main():
 
     # Train the model
     logger.info("Starting training")
-    trained_model = train_model(
+    train_model(
         trainable_projection=trainable_projection,
         backbone_model_path=args.backbone_model,
         target_dim=args.target_dim,
@@ -201,7 +190,6 @@ def main():
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,
         optimizer_params={'lr': args.learning_rate},
-        evaluation_ratio=args.evaluation_ratio,
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
         lr_scheduler_type=args.lr_scheduler_type
