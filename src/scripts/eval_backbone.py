@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import torch
 import logging
 
-from utils.eval import evaluate_sts, evaluate_retrieval
+from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification
 
 
 # Set random seed for reproducibility
@@ -31,3 +31,6 @@ if __name__ == "__main__":
 
     retrieval_score = evaluate_retrieval(model, model_name=f"{args.backbone_model_path.replace('/', '-')}")
     logger.info(f"Final retrieval results: {retrieval_score}")
+
+    classification_score = evaluate_classification(model, model_name=f"{args.backbone_model_path.replace('/', '-')}", batch_size=32)
+    logger.info(f"Final classification results: {classification_score}")
