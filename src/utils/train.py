@@ -3,13 +3,9 @@ Training utilities for distilled sentence transformers using the Sentence Transf
 """
 
 import torch
-from torch.utils.data import Dataset
-from typing import Any
 import logging
 
-from transformers import TrainingArguments, EarlyStoppingCallback
 from transformers import Trainer
-import torch.nn as nn
 
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 
@@ -68,6 +64,7 @@ class SimilarityTrainer(Trainer):
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings
             )
+
             positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
@@ -137,27 +134,59 @@ class SimilarityTrainer(Trainer):
         
         return metrics
 
+    # def _compute_positional_loss(
+    #     self, 
+    #     low_dim_embeddings: torch.Tensor, 
+    #     high_dim_embeddings: torch.Tensor
+    # ) -> torch.Tensor:
+    #     """Compute pairwise distance preservation loss."""
+    #     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
+    #     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
+        
+    #     # Use triu_indices for better memory efficiency
+    #     n = low_dim_dist.size(0)
+    #     triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
+        
+    #     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
+    #     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
+        
+    #     return torch.nn.functional.mse_loss(
+    #         low_dim_dist_upper, 
+    #         high_dim_dist_upper, 
+    #         reduction="mean"
+    #     )
     def _compute_positional_loss(
-        self, 
-        low_dim_embeddings: torch.Tensor, 
-        high_dim_embeddings: torch.Tensor
+        self,
+        low_dim_embeddings: torch.Tensor,
+        high_dim_embeddings: torch.Tensor,
+        eps: float = 1e-8
     ) -> torch.Tensor:
-        """Compute pairwise distance preservation loss."""
+        """Compute pairwise distance preservation loss with inverse-distance weighting.
+        
+        Pairs that are close in the high-dimensional space are given more weight.
+        """
+        # Compute pairwise Euclidean distances
         low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
         high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-        
-        # Use triu_indices for better memory efficiency
+
+        # Use only the upper triangle (excluding diagonal) for efficiency
         n = low_dim_dist.size(0)
         triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-        
+
         low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
         high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
-        
-        return torch.nn.functional.mse_loss(
-            low_dim_dist_upper, 
-            high_dim_dist_upper, 
-            reduction="mean"
-        )
+
+        # Inverse-distance weights: small high-dim distances → larger weight
+        weights = 1.0 / (high_dim_dist_upper + eps)
+
+        # Normalize weights so loss scale stays consistent across batches
+        weights = weights / (weights.sum() + eps)
+
+        # Weighted mean squared error between pairwise distances
+        loss = torch.sum(weights * (low_dim_dist_upper - high_dim_dist_upper) ** 2)
+
+        return loss
+
 
     def _compute_similarity_loss(
         self, 
@@ -184,71 +213,3 @@ class SimilarityTrainer(Trainer):
             high_dim_sim_upper, 
             reduction="mean"
         ) * 100
-
-
-def train_model(
-    trainable_projection: nn.Module,
-    backbone_model_path: str,
-    target_dim: int,
-    train_dataset: Dataset,
-    val_dataset: Dataset,
-    train_batch_size: int,
-    val_batch_size: int,
-    epochs: int = 10,
-    optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
-    optimizer_params: dict[str, Any] = {'lr': 1e-4},
-    weight_decay: float = 0.01,
-    evaluation_ratio: float = 0.5,
-    output_path: str = None,
-    positional_loss_factor: float = 1.0,
-    lr_scheduler_type: str = "linear",
-) -> nn.Module:
-    
-    steps_per_epoch = len(train_dataset) // train_batch_size
-    evaluation_steps = max(1, int(steps_per_epoch * evaluation_ratio))
-
-    # Create training arguments
-    args = TrainingArguments(
-        output_dir=output_path or "./output",
-        num_train_epochs=epochs,
-        per_device_train_batch_size=train_batch_size,
-        per_device_eval_batch_size=val_batch_size,
-        weight_decay=weight_decay,
-        eval_strategy="steps" if val_dataset is not None else "no",
-        eval_steps=evaluation_steps if val_dataset is not None else None,
-        logging_dir="./logs",
-        logging_strategy="epoch",
-        # Model saving configurations - match eval strategy
-        save_strategy="steps" if val_dataset is not None else "epoch",
-        save_steps=evaluation_steps if val_dataset is not None else None,
-        save_total_limit=5,
-        load_best_model_at_end=True if val_dataset is not None else False,
-        # metric_for_best_model="eval_spearmanr",
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
-        dataloader_drop_last=False,
-        disable_tqdm=False,
-        warmup_ratio=0.0,
-        lr_scheduler_type=lr_scheduler_type,
-    )
-
-    # Create optimizer
-    optimizer = optimizer_class(trainable_projection.parameters(), **optimizer_params)
-
-    # Initialize custom trainer
-    trainer = SimilarityTrainer(
-        model=trainable_projection,
-        args=args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        target_dim=target_dim,
-        backbone_model_path=backbone_model_path,
-        positional_loss_factor=positional_loss_factor,
-        optimizers=(optimizer, None),
-        data_collator=collate_embeddings,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.0005)],
-    )
-
-    trainer.train()
-
-    return trainable_projection

@@ -8,13 +8,15 @@ that follows Sentence Transformers best practices and conventions.
 import os
 import argparse
 import logging
+from typing import Any
 
 import torch.nn as nn
 import torch
+from torch.utils.data import Dataset, ConcatDataset
 
-from torch.utils.data import ConcatDataset
+from transformers import TrainingArguments, EarlyStoppingCallback
 
-from utils.train import train_model
+from utils.train import SimilarityTrainer, collate_embeddings
 from utils.custom_datasets import get_precalculated_embeddings_dataset
 from utils.config import PROJECT_ROOT
 
@@ -24,6 +26,77 @@ logger = logging.getLogger(__name__)
 
 # Disable tokenizers parallelism warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
+def train_model(
+    trainable_projection: nn.Module,
+    backbone_model_path: str,
+    target_dim: int,
+    train_dataset: Dataset,
+    val_dataset: Dataset,
+    train_batch_size: int,
+    val_batch_size: int,
+    epochs: int = 10,
+    optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
+    optimizer_params: dict[str, Any] = {'lr': 1e-4},
+    weight_decay: float = 0.00,
+    evaluation_ratio: float = 0.5,
+    output_path: str = None,
+    positional_loss_factor: float = 1.0,
+    lr_scheduler_type: str = "linear",
+) -> nn.Module:
+    
+    steps_per_epoch = len(train_dataset) // train_batch_size
+    evaluation_steps = max(1, int(steps_per_epoch * evaluation_ratio))
+
+    # Create training arguments
+    args = TrainingArguments(
+        output_dir=output_path or "./output",
+        num_train_epochs=epochs,
+        per_device_train_batch_size=train_batch_size,
+        per_device_eval_batch_size=val_batch_size,
+        weight_decay=weight_decay,
+        eval_strategy="steps" if val_dataset is not None else "no",
+        eval_steps=evaluation_steps if val_dataset is not None else None,
+        logging_dir="./logs",
+        logging_strategy="epoch",
+        # Model saving configurations - match eval strategy
+        save_strategy="steps" if val_dataset is not None else "epoch",
+        save_steps=evaluation_steps if val_dataset is not None else None,
+        save_total_limit=5,
+        load_best_model_at_end=True if val_dataset is not None else False,
+        # metric_for_best_model="eval_spearmanr",
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        dataloader_drop_last=False,
+        disable_tqdm=False,
+        warmup_ratio=0.0,
+        lr_scheduler_type=lr_scheduler_type,
+    )
+
+    # Create optimizer
+    optimizer = optimizer_class(trainable_projection.parameters(), **optimizer_params)
+
+    # Initialize custom trainer
+    trainer = SimilarityTrainer(
+        model=trainable_projection,
+        args=args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        target_dim=target_dim,
+        backbone_model_path=backbone_model_path,
+        positional_loss_factor=positional_loss_factor,
+        optimizers=(optimizer, None),
+        data_collator=collate_embeddings,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=3, 
+                early_stopping_threshold=0.005
+            )
+        ],
+    )
+    trainer.train()
+    return trainable_projection
 
 
 def main():
@@ -36,19 +109,17 @@ def main():
     parser.add_argument("--backbone_model_output_dim", type=int, default=512,)
     parser.add_argument("--target_dim", type=int, default=32,
                        help="Target dimension for distilled embeddings")
-    parser.add_argument("--hidden_dim", type=int, default=128,
-                       help="Hidden dimension for projection network")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=3,
+    parser.add_argument("--epochs", type=int, default=5,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-3,
                        help="Learning rate")
-    parser.add_argument("--evaluation_ratio", type=float, default=0.250,
+    parser.add_argument("--evaluation_ratio", type=float, default=0.5,
                        help="Ratio of training steps to perform evaluation")
     parser.add_argument("--positional_loss_factor", type=float, default=1,
                        help="Weight for positional vs similarity loss")
-    parser.add_argument("--train_batch_size", type=int, default=8192,
+    parser.add_argument("--train_batch_size", type=int, default=8192 * 2,
                        help="Batch size for training")
     parser.add_argument("--val_batch_size", type=int, default=8192,
                        help="Batch size for validation")
@@ -61,13 +132,17 @@ def main():
 
     args = parser.parse_args()
         
-    model_name = f"{args.backbone_model.split('/')[-1]}_distilled_{args.target_dim}"
+    model_name = (
+        f"{args.backbone_model.split('/')[-1]}"
+        f"_distilled_{args.target_dim}"
+        f"_batch_{args.train_batch_size}"
+        f"_poslossfactor_{float(args.positional_loss_factor)}"
+    )
     
     output_path = os.path.join(PROJECT_ROOT, "storage", "models", model_name)
     os.makedirs(output_path, exist_ok=True)
     
-    logger.info(f"Starting distillation training:")
-    logger.info(f"Teacher model: {args.backbone_model}")
+    logger.info(f"Backbone model: {args.backbone_model}")
     logger.info(f"Target dimension: {args.target_dim}")
     logger.info(f"Output path: {output_path}")    
     
@@ -113,9 +188,6 @@ def main():
     train_dataset = ConcatDataset(train_datasets)
     val_dataset = ConcatDataset(val_datasets)
 
-    # Training parameters
-    optimizer_params = {'lr': args.learning_rate}
-
     # Train the model
     logger.info("Starting training")
     trained_model = train_model(
@@ -128,7 +200,7 @@ def main():
         val_batch_size=args.val_batch_size,
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,
-        optimizer_params=optimizer_params,
+        optimizer_params={'lr': args.learning_rate},
         evaluation_ratio=args.evaluation_ratio,
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
