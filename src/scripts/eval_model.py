@@ -7,7 +7,7 @@ import json
 
 from utils.config import PROJECT_ROOT
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
-from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification
+from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
 
 
 # Set random seed for reproducibility
@@ -111,11 +111,15 @@ if __name__ == "__main__":
     custom_model.eval()
 
     # Evaluate the model
-    sts_score = evaluate_sts(custom_model, model_name=model_name, batch_size=2048)
+    sts_score = evaluate_sts(custom_model, model_name=model_name)
     logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    retrieval_score = evaluate_retrieval(custom_model, model_name=model_name, batch_size=4)
+    classification_score = evaluate_classification(custom_model, model_name=model_name)
+    logger.info(f"Final classification results: {classification_score}")
+
+    retrieval_score = evaluate_retrieval(custom_model, model_name=model_name)
     logger.info(f"Final retrieval results: {retrieval_score}")
 
-    classification_score = evaluate_classification(custom_model, model_name=model_name, batch_size=32)
-    logger.info(f"Final classification results: {classification_score}")
+    clustering_score = evaluate_clustering(custom_model, model_name=model_name)
+    logger.info(f"Final clustering results: {clustering_score}")
+
