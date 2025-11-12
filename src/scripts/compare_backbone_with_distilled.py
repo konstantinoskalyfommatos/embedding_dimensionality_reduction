@@ -38,7 +38,7 @@ TASK_BENCHMARK_MAPPING = {
 }
 
 
-def collect_results_to_csv():
+def collect_results_to_df():
     """Collect all evaluation results and create a comparison CSV."""
     
     results_dir = os.path.join(PROJECT_ROOT, "storage", "results")
@@ -57,30 +57,21 @@ def collect_results_to_csv():
             continue
         
         # Navigate through the nested subdirectories to find JSON files
-        for root, dirs, files in os.walk(model_dir):
+        for root, _, files in os.walk(model_dir):
             for result_file in files:
                 if not result_file.endswith(".json") or result_file == "model_meta.json":
                     continue
                     
-                task_name = os.path.splitext(result_file)[0]
-                result_path = os.path.join(root, result_file)
+                task_name = os.path.splitext(result_file)[0]                
+                with open(os.path.join(root, result_file), 'r') as f:
+                    results = json.load(f)
+                    
+                test_scores = [subset['main_score'] for subset in results['scores']['test']]
                 
-                try:
-                    with open(result_path, 'r') as f:
-                        data = json.load(f)
-                        
-                    # Extract the main score from the test split
-                    if "test" in data.get("scores", {}):
-                        main_score = data["scores"]["test"][0].get("main_score")
-                        
-                        if task_name not in all_results:
-                            all_results[task_name] = {}
-                        
-                        all_results[task_name][model_name] = main_score
-                        
-                except (json.JSONDecodeError, KeyError, IndexError) as e:
-                    print(f"Error reading {result_path}: {e}")
-                    continue
+                if task_name not in all_results:
+                    all_results[task_name] = {}
+                
+                all_results[task_name][model_name] = sum(test_scores) / len(test_scores)
     
     if not all_results:
         print("No results found to compile.")
@@ -107,15 +98,18 @@ def collect_results_to_csv():
             ordered_rows.append(avg_row.name)
     
     # Add any remaining tasks not in the mapping
-    remaining_tasks = [task for task in df.index if task not in ordered_rows and not task.startswith("Average")]
+    remaining_tasks = [
+        task 
+        for task in df.index 
+        if task not in ordered_rows and not task.startswith("Average")
+    ]
     ordered_rows.extend(remaining_tasks)
     
     # Reorder the dataframe
     df = df.loc[ordered_rows]
-    
     df = df.reindex(sorted(df.columns), axis=1)
     
-    # Save to CSV
+    # Save
     output_path = os.path.join(PROJECT_ROOT, "storage", "comparison_results.csv")
     df.to_csv(output_path)
 
@@ -132,4 +126,4 @@ def collect_results_to_csv():
 
 
 if __name__ == "__main__":
-    collect_results_to_csv()
+    collect_results_to_df()

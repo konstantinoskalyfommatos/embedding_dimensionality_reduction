@@ -55,7 +55,7 @@ def precalculate_embeddings(
         PROJECT_ROOT,
         "storage/precalculated_embeddings",
         dataset_path.split("/")[-1],
-        model_name.replace("/", "_")
+        model_name.replace("/", "__")
     )
 
     model = SentenceTransformer(

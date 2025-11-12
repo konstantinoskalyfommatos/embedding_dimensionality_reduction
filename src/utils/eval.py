@@ -2,6 +2,7 @@ from sentence_transformers import SentenceTransformer
 
 import torch
 import mteb
+from mteb.cache import ResultCache
 
 import logging
 
@@ -16,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 def evaluate_sts(
     model: SentenceTransformer, 
-    model_name: str,
     tasks_list: list[str] = [
         "STS12",
         "STS13",
@@ -33,20 +33,19 @@ def evaluate_sts(
 
     Returns average Spearman correlation score.
     """
-    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages)
-    evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(
-        model, 
-        output_folder=f"{PROJECT_ROOT}/storage/results/{model_name}",
+    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
+    results = mteb.evaluate(
+        tasks=tasks,
+        model=model, 
+        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_results=True
+        overwrite_strategy="only-missing",
     )
-    scores = [result.scores["test"][0]["main_score"] for result in results]
-    return sum(scores) / len(scores)
+    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    return sum(test_scores) / len(test_scores)
 
 def evaluate_retrieval(
     model: SentenceTransformer, 
-    model_name: str,
     tasks_list: list[str] = [
         # "MIRACLRetrievalHardNegatives",
         "QuoraRetrievalHardNegatives",
@@ -67,21 +66,20 @@ def evaluate_retrieval(
     # if languages and "MIRACLRetrievalHardNegatives" in tasks_list:
     #     tasks_list.remove("MIRACLRetrievalHardNegatives")
 
-    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages)
-    evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(
-        model, 
-        output_folder=f"{PROJECT_ROOT}/storage/results/{model_name}",
+    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
+    results = mteb.evaluate(
+        tasks=tasks,
+        model=model, 
+        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_results=True
+        overwrite_strategy="only-missing"
     )
-    scores = [result.scores["test"][0]["main_score"] for result in results]
-    return sum(scores) / len(scores)
+    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    return sum(test_scores) / len(test_scores)
 
 
 def evaluate_classification(
     model: SentenceTransformer, 
-    model_name: str,
     tasks_list: list[str] = [
         "AmazonCounterfactualClassification",
         "AmazonPolarityClassification",  # This has .v2 version
@@ -90,27 +88,26 @@ def evaluate_classification(
         "ToxicConversationsClassification",  # This has .v2 version      
     ],
     languages: list[str] | None = None,
-    batch_size: int = 16
+    batch_size: int = 64
 ) -> float:
     """Evaluates a SentenceTransformer model on classification task.
 
     Returns accuracy score.
     """
-    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages)
-    evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(
-        model, 
-        output_folder=f"{PROJECT_ROOT}/storage/results/{model_name}",
+    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
+    results = mteb.evaluate(
+        tasks=tasks,
+        model=model,
+        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_results=True
+        overwrite_strategy="only-missing"
     )
-    scores = [result.scores["test"][0]["main_score"] for result in results]
-    return sum(scores) / len(scores)
+    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    return sum(test_scores) / len(test_scores)
 
 
 def evaluate_clustering(
     model: SentenceTransformer,
-    model_name: str,
     tasks_list: list[str] = [
         "ArxivClusteringS2S",  # This has newer version (ArXivHierarchicalClusteringS2S)
         "RedditClustering",  # This has .v2 version
@@ -123,13 +120,13 @@ def evaluate_clustering(
 
     Returns average V-measure score.
     """
-    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages)
-    evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(
-        model, 
-        output_folder=f"{PROJECT_ROOT}/storage/results/{model_name}",
+    tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
+    results = mteb.evaluate(
+        tasks=tasks,
+        model=model, 
+        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_results=True
+        overwrite_strategy="only-missing"
     )
-    scores = [result.scores["test"][0]["main_score"] for result in results]
-    return sum(scores) / len(scores)
+    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    return sum(test_scores) / len(test_scores)

@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from mteb.models.model_meta import ModelMeta
+
 from sentence_transformers import SentenceTransformer
 from safetensors.torch import load_file
 import os
@@ -39,11 +41,9 @@ class DistilledSentenceTransformer(SentenceTransformer):
         projection: nn.Module,
         output_dim: int,
         device: str = "cuda",
+        custom_model_name: str | None = None,
         **kwargs
     ):
-        """
-        Initialize a DistilledSentenceTransformer.
-        """
         base_model = SentenceTransformer(model_name_or_path, device=device, trust_remote_code=True, **kwargs)
         projection_head = ProjectionHead(projection, output_dim=output_dim)  
         modules = list(base_model._modules.values()) + [projection_head]
@@ -51,8 +51,14 @@ class DistilledSentenceTransformer(SentenceTransformer):
 
         self.output_dim = output_dim
 
-        self._model_name = f"{model_name_or_path.replace('/', '-')}_{output_dim}"
-        
+        if custom_model_name:
+            self._model_name = custom_model_name
+
+            # MTEB combatibility
+            self.model_card_data.name = self._model_name
+            self.model_card_data.model_id = self._model_name
+            self.model_card_data.model_name = self._model_name
+
         # Freeze only the backbone parameters
         for param in self.parameters():
             param.requires_grad = False
@@ -70,10 +76,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
             if isinstance(module, ProjectionHead):
                 return module
         raise AttributeError("ProjectionHead not found in model modules.")
-
-    @property
-    def model_name(self):
-        return self._model_name
 
     def load_checkpoint(self, path: str, **kwargs) -> 'DistilledSentenceTransformer':
         """Loads a saved distilled model checkpoint."""

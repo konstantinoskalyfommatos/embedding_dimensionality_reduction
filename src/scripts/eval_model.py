@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def load_best_model(model_dir: str, custom_model: DistilledSentenceTransformer):
     """Load the best model checkpoint based on eval_loss."""
     
-    last_checkpoint = sorted(os.listdir(trained_path), key=lambda x: int(x.split('-')[-1]))[-1]
+    last_checkpoint = sorted(os.listdir(model_dir))[-1]
     last_state_filepath = os.path.join(model_dir, last_checkpoint, "trainer_state.json")
     with open(last_state_filepath) as f:
         last_state = json.load(f)
@@ -48,6 +48,10 @@ if __name__ == "__main__":
         help="Name or path of the backbone SentenceTransformer model",
         default="jinaai/jina-embeddings-v2-small-en"
     )
+    parser.add_argument(
+        "--backbone_model_output_dim",
+        default=512
+    )
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
     parser.add_argument("--train_batch_size", type=int, help="Batch size used for training")
@@ -60,39 +64,17 @@ if __name__ == "__main__":
         projection_head = nn.Linear(512, args.target_dim)
 
     else:
-        match args.target_dim:
-            case 32:
-                projection_head = nn.Sequential(
-                    nn.Linear(512, 128),
-                    nn.GELU(),
-                    nn.Linear(128, 32),
-                )
-            case 16:
-                projection_head = nn.Sequential(
-                    nn.Linear(512, 64),
-                    nn.GELU(),
-                    nn.Linear(64, 16),
-                )
-            case 3:
-                projection_head = nn.Sequential(
-                    nn.Linear(512, 128),
-                    nn.GELU(),
-                    nn.Linear(128, 3),
-                )
-            case _:
-                projection_head = nn.Linear(512, args.target_dim)
+        projection_head = nn.Sequential(
+            nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+            nn.ReLU(),
+            nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
+        )
 
     print(projection_head)
 
-    custom_model = DistilledSentenceTransformer(
-        model_name_or_path=args.backbone_model,
-        projection=projection_head,
-        output_dim=args.target_dim,
-    )
-
     if args.use_random_projection:
         model_name = os.path.join(
-            f"{args.backbone_model.split('/')[-1]}"
+            f"{args.backbone_model}"
             f"_distilled_{args.target_dim}"
             "_random"
         )
@@ -100,26 +82,35 @@ if __name__ == "__main__":
         trained_path = os.path.join(
             PROJECT_ROOT, 
             "storage/models", 
-            f"{args.backbone_model.split('/')[-1]}"
+            f"{args.backbone_model.replace("/", "__")}"
             f"_distilled_{args.target_dim}"
             f"_batch_{args.train_batch_size}"
             f"_poslossfactor_{float(args.positional_loss_factor)}"
         )
+        # NOTE: MTEB expect the model name to be in the format company/model_name
+        model_name = trained_path.split("storage/models/")[-1].replace("__", "/")
+
+    custom_model = DistilledSentenceTransformer(
+        model_name_or_path=args.backbone_model,
+        projection=projection_head,
+        output_dim=args.target_dim,
+        custom_model_name=model_name
+    )
+    if not args.use_random_projection:
         custom_model = load_best_model(trained_path, custom_model)
-        model_name = trained_path.split("storage/models")[-1]
 
     custom_model.eval()
 
     # Evaluate the model
-    sts_score = evaluate_sts(custom_model, model_name=model_name)
+    sts_score = evaluate_sts(custom_model)
     logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    classification_score = evaluate_classification(custom_model, model_name=model_name)
+    classification_score = evaluate_classification(custom_model)
     logger.info(f"Final classification results: {classification_score}")
 
-    retrieval_score = evaluate_retrieval(custom_model, model_name=model_name)
+    retrieval_score = evaluate_retrieval(custom_model)
     logger.info(f"Final retrieval results: {retrieval_score}")
 
-    clustering_score = evaluate_clustering(custom_model, model_name=model_name)
+    clustering_score = evaluate_clustering(custom_model)
     logger.info(f"Final clustering results: {clustering_score}")
 

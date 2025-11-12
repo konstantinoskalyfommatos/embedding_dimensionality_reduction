@@ -102,7 +102,7 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=3,
+    parser.add_argument("--epochs", type=int, default=2,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
@@ -122,7 +122,7 @@ def main():
     args = parser.parse_args()
         
     model_name = (
-        f"{args.backbone_model.split('/')[-1]}"
+        f"{args.backbone_model.replace("/", "__")}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
         f"_poslossfactor_{float(args.positional_loss_factor)}"
@@ -136,25 +136,11 @@ def main():
     logger.info(f"Output path: {output_path}")    
     
     logger.info("Creating trainable projection")
-    match args.target_dim:
-        case 32:
-            trainable_projection = nn.Sequential(
-                nn.Linear(args.backbone_model_output_dim, 128),
-                nn.GELU(),
-                nn.Linear(128, 32),
-            )
-        case 16:
-            trainable_projection = nn.Sequential(
-                nn.Linear(args.backbone_model_output_dim, 64),
-                nn.GELU(),
-                nn.Linear(64, 16),
-            )
-        case 3:
-            trainable_projection = nn.Sequential(
-                nn.Linear(args.backbone_model_output_dim, 128),
-                nn.GELU(),
-                nn.Linear(128, 3),
-            )
+    trainable_projection = nn.Sequential(
+        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+        nn.ReLU(),
+        nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
+    )
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
