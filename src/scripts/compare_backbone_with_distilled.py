@@ -38,10 +38,9 @@ TASK_BENCHMARK_MAPPING = {
 }
 
 
-def collect_results_to_df():
+def collect_results_to_df(results_dir: str):
     """Collect all evaluation results and create a comparison CSV."""
     
-    results_dir = os.path.join(PROJECT_ROOT, "storage", "results")
     
     if not os.path.exists(results_dir):
         print(f"Results directory not found: {results_dir}")
@@ -108,22 +107,21 @@ def collect_results_to_df():
     # Reorder the dataframe
     df = df.loc[ordered_rows]
     df = df.reindex(sorted(df.columns), axis=1)
-    
-    # Save
-    output_path = os.path.join(PROJECT_ROOT, "storage", "comparison_results.csv")
-    df.to_csv(output_path)
-
-    md_output_path = os.path.join(PROJECT_ROOT, "storage", "comparison_results.md")
-    df.to_markdown(md_output_path, floatfmt=".4f")
-    
-    print(f"Results saved to: {output_path}")
-    print(f"\nSummary:")
-    print(f"Tasks: {len(df)}")
-    print(f"Models: {len(df.columns)}")
-    print(f"\nPreview:\n{df.head(15)}")
-    
+     
     return df
 
 
 if __name__ == "__main__":
-    collect_results_to_df()
+    results_dir = os.path.join(PROJECT_ROOT, "storage", "results")
+
+    df = collect_results_to_df(results_dir=results_dir)
+
+    # Save
+    output_path = os.path.join(results_dir, "comparison_results.csv")
+    df.to_csv(output_path)
+
+    md_output_path = os.path.join(results_dir, "comparison_results.md")
+    df.to_markdown(md_output_path, floatfmt=".4f")
+    
+    print(f"Results saved to: {output_path}")  
+

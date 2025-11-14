@@ -41,7 +41,11 @@ def evaluate_sts(
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing",
     )
-    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    test_scores = []
+    for task_result in results:
+        task_result_dict = task_result.to_dict()
+        task_scores = [d["main_score"] for d in task_result_dict["scores"]["test"]]
+        test_scores.append(sum(task_scores) / len(task_scores))
     return sum(test_scores) / len(test_scores)
 
 def evaluate_retrieval(
@@ -74,7 +78,11 @@ def evaluate_retrieval(
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )
-    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    test_scores = []
+    for task_result in results:
+        task_result_dict = task_result.to_dict()
+        task_scores = [d["main_score"] for d in task_result_dict["scores"]["test"]]
+        test_scores.append(sum(task_scores) / len(task_scores))
     return sum(test_scores) / len(test_scores)
 
 
@@ -88,7 +96,7 @@ def evaluate_classification(
         "ToxicConversationsClassification",  # This has .v2 version      
     ],
     languages: list[str] | None = None,
-    batch_size: int = 64
+    batch_size: int = 16
 ) -> float:
     """Evaluates a SentenceTransformer model on classification task.
 
@@ -102,7 +110,11 @@ def evaluate_classification(
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )
-    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    test_scores = []
+    for task_result in results:
+        task_result_dict = task_result.to_dict()
+        task_scores = [d["main_score"] for d in task_result_dict["scores"]["test"]]
+        test_scores.append(sum(task_scores) / len(task_scores))
     return sum(test_scores) / len(test_scores)
 
 
@@ -128,5 +140,9 @@ def evaluate_clustering(
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )
-    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+    test_scores = []
+    for task_result in results:
+        task_result_dict = task_result.to_dict()
+        task_scores = [d["main_score"] for d in task_result_dict["scores"]["test"]]
+        test_scores.append(sum(task_scores) / len(task_scores))
     return sum(test_scores) / len(test_scores)
