@@ -56,7 +56,8 @@ if __name__ == "__main__":
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
     parser.add_argument("--train_batch_size", type=int, help="Batch size used for training")
     parser.add_argument("--use_random_projection", action="store_true", help="Use random projection head")
-
+    parser.add_argument("--model_base_path", type=str, default="storage/models",
+                       help="Path where the model was saved at. Will be appended to project root")
     args = parser.parse_args()
     logger.info(f"Args: {args}")
     
@@ -64,10 +65,14 @@ if __name__ == "__main__":
         projection_head = nn.Linear(512, args.target_dim)
 
     else:
+        # projection_head = nn.Sequential(
+        #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+        #     nn.ReLU(),
+        #     nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
+        # )
         projection_head = nn.Sequential(
-            nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+            nn.Linear(args.backbone_model_output_dim, args.target_dim),
             nn.ReLU(),
-            nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
         )
 
     print(projection_head)
@@ -81,7 +86,7 @@ if __name__ == "__main__":
     else:
         trained_path = os.path.join(
             PROJECT_ROOT, 
-            "storage/models", 
+            args.model_base_path,
             f"{args.backbone_model.replace("/", "__")}"
             f"_distilled_{args.target_dim}"
             f"_batch_{args.train_batch_size}"
@@ -113,4 +118,3 @@ if __name__ == "__main__":
 
     clustering_score = evaluate_clustering(custom_model)
     logger.info(f"Final clustering results: {clustering_score}")
-

@@ -116,8 +116,8 @@ def main():
                        help="Learning rate scheduler type")
 
     # Output configuration
-    parser.add_argument("--output_dir", type=str, default=None,
-                       help="Output directory for saving the model")
+    parser.add_argument("--model_base_path", type=str, default="storage/models",
+                       help="Path to save the model at. Will be appended to project root")
 
     args = parser.parse_args()
         
@@ -128,7 +128,7 @@ def main():
         f"_poslossfactor_{float(args.positional_loss_factor)}"
     )
     
-    output_path = os.path.join(PROJECT_ROOT, "storage", "models", model_name)
+    output_path = os.path.join(PROJECT_ROOT, args.model_base_path, model_name)
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Backbone model: {args.backbone_model}")
@@ -136,10 +136,14 @@ def main():
     logger.info(f"Output path: {output_path}")    
     
     logger.info("Creating trainable projection")
+    # trainable_projection = nn.Sequential(
+    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+    #     nn.ReLU(),
+    #     nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
+    # )
     trainable_projection = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+        nn.Linear(args.backbone_model_output_dim, args.target_dim),
         nn.ReLU(),
-        nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
     )
     trainable_projection.to(torch.device("cuda"))
     
@@ -151,12 +155,12 @@ def main():
     ]:
         train_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
-            model_name=args.backbone_model,
+            model_name=args.backbone_model.replace("/", "__"),
             split="train",
         ))
         val_datasets.append(get_precalculated_embeddings_dataset(
             dataset_path=dataset_name,
-            model_name=args.backbone_model,
+            model_name=args.backbone_model.replace("/", "__"),
             split="validation",
         ))
 
