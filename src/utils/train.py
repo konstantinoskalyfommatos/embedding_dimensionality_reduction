@@ -72,6 +72,10 @@ class SimilarityTrainer(Trainer):
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings
             )
+            # similarity_loss = self._compute_dot_product_loss(
+            #     low_dim_embeddings=low_dim_embeddings,
+            #     high_dim_embeddings=high_dim_embeddings
+            # )
             similarity_loss.requires_grad_(True)
         
         return (
@@ -213,3 +217,26 @@ class SimilarityTrainer(Trainer):
             high_dim_sim_upper, 
             reduction="mean"
         ) * 100
+
+    def _compute_dot_product_loss(
+        self,
+        low_dim_embeddings: torch.Tensor,
+        high_dim_embeddings: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute pairwise dot-product (Gram matrix) preservation loss."""
+        # Gram matrices (pairwise dot products)
+        low_dim_gram = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
+        high_dim_gram = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
+
+        # Use only upper triangle (excluding diagonal) for efficiency
+        n = low_dim_gram.size(0)
+        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
+
+        low_dim_upper = low_dim_gram[triu_indices[0], triu_indices[1]]
+        high_dim_upper = high_dim_gram[triu_indices[0], triu_indices[1]]
+
+        return torch.nn.functional.mse_loss(
+            low_dim_upper,
+            high_dim_upper,
+            reduction="mean"
+        )
