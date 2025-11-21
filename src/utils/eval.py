@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 def evaluate_sts(
     model: SentenceTransformer, 
+    cache_path: str,
     tasks_list: list[str] = [
         "STS12",
         "STS13",
@@ -37,7 +38,7 @@ def evaluate_sts(
     results = mteb.evaluate(
         tasks=tasks,
         model=model, 
-        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
+        cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing",
     )
@@ -49,7 +50,8 @@ def evaluate_sts(
     return sum(test_scores) / len(test_scores)
 
 def evaluate_retrieval(
-    model: SentenceTransformer, 
+    model: SentenceTransformer,
+    cache_path: str,
     tasks_list: list[str] = [
         # "MIRACLRetrievalHardNegatives",
         "QuoraRetrievalHardNegatives",
@@ -74,7 +76,7 @@ def evaluate_retrieval(
     results = mteb.evaluate(
         tasks=tasks,
         model=model, 
-        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
+        cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )
@@ -87,7 +89,8 @@ def evaluate_retrieval(
 
 
 def evaluate_classification(
-    model: SentenceTransformer, 
+    model: SentenceTransformer,
+    cache_path: str,
     tasks_list: list[str] = [
         "AmazonCounterfactualClassification",
         "AmazonPolarityClassification",  # This has .v2 version
@@ -106,7 +109,7 @@ def evaluate_classification(
     results = mteb.evaluate(
         tasks=tasks,
         model=model,
-        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
+        cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )
@@ -120,6 +123,7 @@ def evaluate_classification(
 
 def evaluate_clustering(
     model: SentenceTransformer,
+    cache_path: str,
     tasks_list: list[str] = [
         "ArxivClusteringS2S",  # This has newer version (ArXivHierarchicalClusteringS2S)
         "RedditClustering",  # This has .v2 version
@@ -136,7 +140,7 @@ def evaluate_clustering(
     results = mteb.evaluate(
         tasks=tasks,
         model=model, 
-        cache=ResultCache(cache_path=f"{PROJECT_ROOT}/storage/"),
+        cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
         overwrite_strategy="only-missing"
     )

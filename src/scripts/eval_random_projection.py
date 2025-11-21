@@ -5,7 +5,7 @@ import os
 import logging
 import json
 
-from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
+from utils.config import EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
 
@@ -15,33 +15,6 @@ torch.manual_seed(42)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def get_best_safetensors(model_dir: str):
-    """Returns the best model checkpoint safetensors based on eval_loss."""
-    if "checkpoint" in model_dir:
-        last_checkpoint = model_dir
-    else:
-        last_checkpoint = os.path.join(
-            model_dir,
-            sorted(os.listdir(model_dir))[-1]
-        )
-
-    last_state_filepath = os.path.join(last_checkpoint, "trainer_state.json")
-    with open(last_state_filepath) as f:
-        last_state = json.load(f)
-
-    best_metric = last_state["best_metric"]
-    best_model_checkpoint = last_state["best_model_checkpoint"]
-
-    logger.info(
-        f"Loading safetensors from checkpoint: {best_model_checkpoint} "
-        f"with best metric: {best_metric}"
-    )
-    return os.path.join(
-            best_model_checkpoint,
-            "model.safetensors"
-        )
 
 
 if __name__ == "__main__":
@@ -56,48 +29,22 @@ if __name__ == "__main__":
         default=512
     )
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
-    parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
-    parser.add_argument("--train_batch_size", type=int, help="Batch size used for training")
-    parser.add_argument("--model_saved_path", type=str, required=False, default=None, help="Custom path where the model was saved at")
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
-
     args = parser.parse_args()
     logger.info(f"Args: {args}")
-
-    # projection_head = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
-    #     nn.ReLU(),
-    #     nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
-    # )
-    projection_head = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.target_dim),
-        nn.ReLU(),
-    )
+    
+    projection_head = nn.Linear(args.backbone_model_output_dim, args.target_dim)
 
     print(projection_head)
 
-    if args.model_saved_path:
-        trained_path = args.model_saved_path
-        # For MTEB
-        if not args.model_saved_path.endswith("/"):
-            args.model_saved_path += "/"
-    else:
-        trained_path = os.path.join(
-            TRAINED_MODELS_PATH,
-            args.backbone_model.replace("/", "__"),
-            f"{args.backbone_model.replace("/", "__")}"
-            f"_distilled_{args.target_dim}"
-            f"_batch_{args.train_batch_size}"
-            f"_poslossfactor_{float(args.positional_loss_factor)}"
-        )
-
-    best_safetenors_path = get_best_safetensors(trained_path)
-
-    # NOTE: MTEB expect the model name to be in the format company/model_name
-    model_name = trained_path.split("/checkpoint")[0].split("/")[-1].replace("__", "/")
+    model_name = os.path.join(
+        f"{args.backbone_model}"
+        f"_distilled_{args.target_dim}"
+        "_random"
+    )
 
     custom_model = DistilledSentenceTransformer(
         model_name_or_path=args.backbone_model,
@@ -105,17 +52,14 @@ if __name__ == "__main__":
         output_dim=args.target_dim,
         custom_model_name=model_name
     )
-    custom_model.load_checkpoint(best_safetenors_path)
 
     custom_model.eval()
 
     # Evaluate the model
-    if "checkpoint" in trained_path:
-        trained_path = trained_path.split("/checkpoint")[0]
     cache_path = os.path.join(
         EVALUATION_RESULTS_PATH,
-        "trained_models",
-        trained_path.split("models/")[-1],
+        "random_projection",
+        args.backbone_model.replace("/", "__"),
     )
 
     if not args.skip_sts:

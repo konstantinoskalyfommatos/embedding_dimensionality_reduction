@@ -2,6 +2,8 @@ from sentence_transformers import SentenceTransformer
 from argparse import ArgumentParser
 import torch
 import logging
+import os
+from utils.config import EVALUATION_RESULTS_PATH
 
 from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
 
@@ -12,28 +14,50 @@ torch.manual_seed(42)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on Benchmarks")
     parser.add_argument(
-        "--backbone_model_path", type=str, 
+        "--backbone_model", type=str, 
         help="Name or path of the backbone SentenceTransformer model",
         default="jinaai/jina-embeddings-v2-small-en"
     )
+    parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
+    parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
+    parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
+    parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
 
     args = parser.parse_args()
 
-    model = SentenceTransformer(args.backbone_model_path, device="cuda", trust_remote_code=True)
+    model = SentenceTransformer(args.backbone_model, device="cuda", trust_remote_code=True)
     model.eval()
 
     # Evaluate the model
-    sts_score = evaluate_sts(model, model_name=f"{args.backbone_model_path.replace('/', '-')}", languages=None)
-    logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
+    cache_path = os.path.join(EVALUATION_RESULTS_PATH, "backbone", args.backbone_model.replace("/", "__"))
+    if not args.skip_sts:
+        sts_score = evaluate_sts(
+            model=model,
+            cache_path=cache_path
+        )
+        logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    retrieval_score = evaluate_retrieval(model, model_name=f"{args.backbone_model_path.replace('/', '-')}")
-    logger.info(f"Final retrieval results: {retrieval_score}")
+    if not args.skip_classification:
+        classification_score = evaluate_classification(
+        model=model,
+        cache_path=cache_path
+    )
+        logger.info(f"Final classification results: {classification_score}")
 
-    classification_score = evaluate_classification(model, model_name=f"{args.backbone_model_path.replace('/', '-')}")
-    logger.info(f"Final classification results: {classification_score}")
+    if not args.skip_retrieval:
+        retrieval_score = evaluate_retrieval(
+            model=model,
+            cache_path=cache_path
+        )
+        logger.info(f"Final retrieval results: {retrieval_score}")
 
-    clustering_score = evaluate_clustering(model, model_name=f"{args.backbone_model_path.replace('/', '-')}")
-    logger.info(f"Final clustering results: {clustering_score}")
+    if not args.skip_clustering:
+        clustering_score = evaluate_clustering(
+            model=model,
+            cache_path=cache_path
+        )
+        logger.info(f"Final clustering results: {clustering_score}")
