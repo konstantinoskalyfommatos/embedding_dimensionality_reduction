@@ -54,12 +54,12 @@ def evaluate_retrieval(
     cache_path: str,
     tasks_list: list[str] = [
         # "MIRACLRetrievalHardNegatives",
+        "ArguAna",
         "QuoraRetrievalHardNegatives",
         "HotpotQAHardNegatives",
         "DBPediaHardNegatives",
         "NQHardNegatives",
         "MSMARCOHardNegatives",
-        "ArguAna"    
     ],
     languages: list[str] | None = None,
     batch_size: int = 4

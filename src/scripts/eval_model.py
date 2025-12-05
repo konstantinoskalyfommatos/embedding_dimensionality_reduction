@@ -125,13 +125,6 @@ if __name__ == "__main__":
         )
         logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    if not args.skip_classification:
-        classification_score = evaluate_classification(
-        model=custom_model,
-        cache_path=cache_path
-        )
-        logger.info(f"Final classification results: {classification_score}")
-
     if not args.skip_retrieval:
         retrieval_score = evaluate_retrieval(
             model=custom_model,
@@ -145,3 +138,10 @@ if __name__ == "__main__":
             cache_path=cache_path
         )
         logger.info(f"Final clustering results: {clustering_score}")
+
+    if not args.skip_classification:
+        classification_score = evaluate_classification(
+        model=custom_model,
+        cache_path=cache_path
+        )
+        logger.info(f"Final classification results: {classification_score}")
