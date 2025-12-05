@@ -18,7 +18,7 @@ from transformers import TrainingArguments, EarlyStoppingCallback
 
 from utils.train import SimilarityTrainer, collate_embeddings
 from utils.custom_datasets import get_precalculated_embeddings_dataset
-from utils.config import PROJECT_ROOT
+from utils.config import TRAINED_MODELS_PATH
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -116,8 +116,16 @@ def main():
                        help="Learning rate scheduler type")
 
     # Output configuration
-    parser.add_argument("--model_base_path", type=str, default="storage/models",
-                       help="Path to save the model at. Will be appended to project root")
+    parser.add_argument(
+        "--custom_model_save_dir", 
+        type=str, 
+        default=None,
+        help=(
+            "Custom directory to save the model at. "
+            "Will be appended to the models path."
+        )
+    )
+                    
 
     args = parser.parse_args()
         
@@ -128,7 +136,11 @@ def main():
         f"_poslossfactor_{float(args.positional_loss_factor)}"
     )
     
-    output_path = os.path.join(PROJECT_ROOT, args.model_base_path, model_name)
+    custom_save_dir = args.custom_model_save_dir
+    if custom_save_dir:
+        output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), custom_save_dir, model_name)
+    else:
+        output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), model_name)
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Backbone model: {args.backbone_model}")

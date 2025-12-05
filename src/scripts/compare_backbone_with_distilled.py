@@ -114,6 +114,9 @@ def collect_results_to_df(results_dir: str):
 if __name__ == "__main__":
     results_dir = os.path.join(PROJECT_ROOT, "storage", "results")
 
+    # TODO: Add arguments
+    results_dir = "/home/kotsios/dsit/thesis/thesis_project/storage/evaluation_results/backbone/jinaai__jina-embeddings-v2-small-en"
+
     df = collect_results_to_df(results_dir=results_dir)
 
     # Save
