@@ -94,7 +94,6 @@ def precalculate_embeddings(
         tokenized_dataset = TokenizedDataset(
             [ex[text_column] for ex in filtered_examples],
             tokenizer=tokenizer,
-            max_length=312
         )
         dataloader = DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=False)
 

@@ -11,11 +11,9 @@ class TokenizedDataset(Dataset):
         self, 
         sentences: list[str], 
         tokenizer: AutoTokenizer, 
-        max_length: int
     ):
         self.sentences = sentences
         self.tokenizer = tokenizer
-        self.max_length = max_length
 
     def __len__(self):
         return len(self.sentences)
@@ -24,12 +22,14 @@ class TokenizedDataset(Dataset):
         sentence = self.sentences[idx]
         encoded = self.tokenizer(
             sentence,
-            max_length=self.max_length,
-            padding="max_length",
+            padding=False,
             truncation=True,
             return_tensors="pt",
         )
-        return encoded["input_ids"].squeeze(0), encoded["attention_mask"].squeeze(0)
+        return (
+            encoded["input_ids"].squeeze(0), 
+            encoded["attention_mask"].squeeze(0)
+        )
     
 
 class EmbeddingsDataset(Dataset):
