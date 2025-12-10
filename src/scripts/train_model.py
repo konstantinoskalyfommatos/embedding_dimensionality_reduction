@@ -64,6 +64,7 @@ def train_model(
         disable_tqdm=False,
         warmup_ratio=0.0,
         lr_scheduler_type=lr_scheduler_type,
+        dataloader_pin_memory=True
     )
 
     # Create optimizer
@@ -108,9 +109,9 @@ def main():
                        help="Learning rate")
     parser.add_argument("--positional_loss_factor", type=float, default=1,
                        help="Weight for positional vs similarity loss")
-    parser.add_argument("--train_batch_size", type=int, default=8192 * 2,
+    parser.add_argument("--train_batch_size", type=int, default=8192,
                        help="Batch size for training")
-    parser.add_argument("--val_batch_size", type=int, default=8192 * 2,
+    parser.add_argument("--val_batch_size", type=int, default=8192,
                        help="Batch size for validation")
     parser.add_argument("--lr_scheduler_type", type=str, default="linear",
                        help="Learning rate scheduler type")
@@ -148,15 +149,15 @@ def main():
     logger.info(f"Output path: {output_path}")    
     
     logger.info("Creating trainable projection")
-    # trainable_projection = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
-    #     nn.ReLU(),
-    #     nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
-    # )
     trainable_projection = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.target_dim),
+        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
         nn.ReLU(),
+        nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
     )
+    # trainable_projection = nn.Sequential(
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
+    #     nn.ReLU(),
+    # )
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
