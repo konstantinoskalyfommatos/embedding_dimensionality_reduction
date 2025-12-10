@@ -28,7 +28,7 @@ def evaluate_sts(
         "SICK-R"
     ],
     languages: list[str] | None = None,
-    batch_size: int = 2048
+    batch_size: int = 4048
 ) -> float:
     """Evaluates a SentenceTransformer model on the STSBenchmark English dataset.
 
@@ -62,7 +62,7 @@ def evaluate_retrieval(
         "MSMARCOHardNegatives",
     ],
     languages: list[str] | None = None,
-    batch_size: int = 4
+    batch_size: int = 6
 ) -> float:
     """Evaluates a SentenceTransformer model on retrieval task.
 
@@ -86,7 +86,7 @@ def evaluate_retrieval(
         task_scores = [d["main_score"] for d in task_result_dict["scores"]["test"]]
         test_scores.append(sum(task_scores) / len(task_scores))
     return sum(test_scores) / len(test_scores)
-
+ 
 
 def evaluate_classification(
     model: SentenceTransformer,
@@ -130,7 +130,7 @@ def evaluate_clustering(
         "StackExchangeClustering"  # This has .v2 version
     ],
     languages: list[str] | None = None,
-    batch_size: int = 16
+    batch_size: int = 20
 ):
     """Evaluates a SentenceTransformer model on clustering task.
 
