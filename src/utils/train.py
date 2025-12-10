@@ -6,22 +6,25 @@ import torch
 import logging
 
 from transformers import Trainer
+import torch.nn.functional as F
 
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 
 torch.manual_seed(42)
 
 logger = logging.getLogger(__name__)
-    
+
 
 def collate_embeddings(features):
-    """
-    Collate a list of tensors or dicts into a batch dict with key 'input'.
-    """
-    if isinstance(features[0], dict):
-        return {"input": torch.stack([f["input"] for f in features], dim=0)}
-    return {"input": torch.stack(features, dim=0)}
-
+    # Stack all pairs: [(normal_0, mc_0), (normal_1, mc_1), ...]
+    # into a single tensor: [normal_0, mc_0, normal_1, mc_1, ...]
+    batch = []
+    for tuple_of_tensors in features:
+        batch.append(F.normalize(tuple_of_tensors[0], dim=0))
+        batch.append(F.normalize(tuple_of_tensors[1], dim=0))
+    
+    t = torch.stack(batch, dim=0)
+    return {"input": t}
 
 class SimilarityTrainer(Trainer):
     def __init__(
@@ -46,13 +49,7 @@ class SimilarityTrainer(Trainer):
 
     def compute_loss(self, model, inputs, *args, **kwargs) -> torch.Tensor:
         """Compute the combined loss for distillation."""
-        if isinstance(inputs, dict):
-            high_dim_embeddings = inputs["input"]
-            if high_dim_embeddings is None:
-                raise ValueError("No input tensor found in batch. Expected key 'input'.")
-        else:
-            high_dim_embeddings = inputs
-
+        high_dim_embeddings = inputs["input"]
         low_dim_embeddings = model(high_dim_embeddings)
 
         # Compute losses

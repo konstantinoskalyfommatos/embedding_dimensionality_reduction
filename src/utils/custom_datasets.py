@@ -16,6 +16,25 @@ class EmbeddingsDataset(Dataset):
         return self.embeddings[idx]
 
 
+class MonteCarloEmbeddingsDataset(Dataset):
+    """Dataset for Monte Carlo inference.
+    
+    Will be used after Monte Carlo inference, where pairs of \
+    similar embeddings will be created for each sentence input.
+    """
+    def __init__(self, embeddings: torch.Tensor):
+        self.embeddings = embeddings
+
+    def __len__(self):
+        return len(self.embeddings) // 2
+    
+    def __getitem__(self, idx):
+        return (
+            self.embeddings[2 * idx],
+            self.embeddings[2 * idx + 1],
+        )
+
+
 def get_precalculated_embeddings_dataset(
     dataset_path: str, 
     model_name: str,
@@ -34,4 +53,4 @@ def get_precalculated_embeddings_dataset(
         raise FileNotFoundError(f"Precalculated embeddings not found at {output_path}")
 
     embeddings = torch.load(output_path)
-    return EmbeddingsDataset(embeddings)
+    return MonteCarloEmbeddingsDataset(embeddings)
