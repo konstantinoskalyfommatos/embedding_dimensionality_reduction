@@ -1,6 +1,8 @@
 import os
 import json
 import pandas as pd
+from argparse import ArgumentParser
+
 from utils.config import PROJECT_ROOT
 
 
@@ -112,19 +114,19 @@ def collect_results_to_df(results_dir: str):
 
 
 if __name__ == "__main__":
-    results_dir = os.path.join(PROJECT_ROOT, "storage", "results")
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--results_dir", 
+        type=str, 
+        required=True, 
+        help="Example: path/to/results/jinaai__jina-embeddings-v2-small-en_distilled_64_batch_8192_poslossfactor_1.0"
+    )
 
-    # TODO: Add arguments
-    results_dir = "/home/kotsios/dsit/thesis/thesis_project/storage/evaluation_results/backbone/jinaai__jina-embeddings-v2-small-en"
-
-    df = collect_results_to_df(results_dir=results_dir)
+    args = parser.parse_args()
+    df = collect_results_to_df(results_dir=args.results_dir)
 
     # Save
-    output_path = os.path.join(results_dir, "comparison_results.csv")
+    output_path = os.path.join(args.results_dir, "comparison_results.csv")
     df.to_csv(output_path)
-
-    md_output_path = os.path.join(results_dir, "comparison_results.md")
-    df.to_markdown(md_output_path, floatfmt=".4f")
     
     print(f"Results saved to: {output_path}")  
-
