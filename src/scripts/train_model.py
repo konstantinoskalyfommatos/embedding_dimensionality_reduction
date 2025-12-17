@@ -60,7 +60,7 @@ def train_model(
         load_best_model_at_end=False,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
-        dataloader_drop_last=False,
+        dataloader_drop_last=True,
         disable_tqdm=False,
         warmup_ratio=0.0,
         lr_scheduler_type=lr_scheduler_type,
