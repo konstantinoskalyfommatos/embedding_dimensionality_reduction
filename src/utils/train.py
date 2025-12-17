@@ -16,12 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def collate_embeddings(features):
-    # Stack all pairs: [(normal_0, mc_0), (normal_1, mc_1), ...]
-    # into a single tensor: [normal_0, mc_0, normal_1, mc_1, ...]
     batch = []
     for tuple_of_tensors in features:
-        batch.append(F.normalize(tuple_of_tensors[0], dim=0))
-        batch.append(F.normalize(tuple_of_tensors[1], dim=0))
+        batch.append(tuple_of_tensors[0])
     
     t = torch.stack(batch, dim=0)
     return {"input": t}
