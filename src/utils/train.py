@@ -16,12 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def collate_embeddings(features):
-    batch = []
-    for tuple_of_tensors in features:
-        batch.append(tuple_of_tensors[0])
-    
-    t = torch.stack(batch, dim=0)
-    return {"input": t}
+    batched_embeddings = torch.stack(features, dim=0)
+    return {"input": batched_embeddings}
 
 class SimilarityTrainer(Trainer):
     def __init__(
