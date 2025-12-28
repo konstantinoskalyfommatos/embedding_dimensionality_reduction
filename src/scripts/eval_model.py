@@ -64,19 +64,15 @@ if __name__ == "__main__":
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
     parser.add_argument("--normalize_vector_before_projecting", action="store_true")
+    parser.add_argument("--fast_mode", action="store_true")
 
     args = parser.parse_args()
     logger.info(f"Args: {args}")
 
     projection_head = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+        nn.Linear(args.backbone_model_output_dim, args.target_dim),
         nn.ReLU(),
-        nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
     )
-    # projection_head = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
-    #     nn.ReLU(),
-    # )
 
     print(projection_head)
 
@@ -100,15 +96,12 @@ if __name__ == "__main__":
     # NOTE: MTEB expect the model name to be in the format company/model_name
     model_name = trained_path.split("/checkpoint")[0].split("/")[-1].replace("__", "/")
 
-    normalize_vector_before_projecting = args.normalize_vector_before_projecting
-    if not normalize_vector_before_projecting:
-        normalize_vector_before_projecting = False
     custom_model = DistilledSentenceTransformer(
         model_name_or_path=args.backbone_model,
         projection=projection_head,
         output_dim=args.target_dim,
         custom_model_name=model_name,
-        normalize_vector_before_projecting=normalize_vector_before_projecting
+        normalize_vector_before_projecting=args.normalize_vector_before_projecting
     )
     custom_model.load_checkpoint(best_safetenors_path)
 
@@ -117,6 +110,7 @@ if __name__ == "__main__":
     # Evaluate the model
     if "checkpoint" in trained_path:
         trained_path = trained_path.split("/checkpoint")[0]
+
     cache_path = os.path.join(
         EVALUATION_RESULTS_PATH,
         "trained_models",
@@ -126,27 +120,32 @@ if __name__ == "__main__":
     if not args.skip_sts:
         sts_score = evaluate_sts(
             model=custom_model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
     if not args.skip_retrieval:
         retrieval_score = evaluate_retrieval(
             model=custom_model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final retrieval results: {retrieval_score}")
 
     if not args.skip_clustering:
         clustering_score = evaluate_clustering(
             model=custom_model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final clustering results: {clustering_score}")
 
     if not args.skip_classification:
         classification_score = evaluate_classification(
-        model=custom_model,
-        cache_path=cache_path
+            model=custom_model,
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final classification results: {classification_score}")
+        

@@ -26,6 +26,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
+    parser.add_argument("--fast_mode", action="store_true")
 
     args = parser.parse_args()
 
@@ -37,27 +38,31 @@ if __name__ == "__main__":
     if not args.skip_sts:
         sts_score = evaluate_sts(
             model=model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
     if not args.skip_classification:
         classification_score = evaluate_classification(
-        model=model,
-        cache_path=cache_path
-    )
+            model=model,
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
+        )
         logger.info(f"Final classification results: {classification_score}")
 
     if not args.skip_retrieval:
         retrieval_score = evaluate_retrieval(
             model=model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final retrieval results: {retrieval_score}")
 
     if not args.skip_clustering:
         clustering_score = evaluate_clustering(
             model=model,
-            cache_path=cache_path
+            cache_path=cache_path,
+            fast_mode=args.fast_mode
         )
         logger.info(f"Final clustering results: {clustering_score}")

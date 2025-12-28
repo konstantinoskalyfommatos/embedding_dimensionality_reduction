@@ -28,12 +28,17 @@ def evaluate_sts(
         "SICK-R"
     ],
     languages: list[str] | None = None,
-    batch_size: int = 4048
+    batch_size: int = 4048,
+    fast_mode: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on the STSBenchmark English dataset.
 
     Returns average Spearman correlation score.
     """
+    if fast_mode:
+        logger.info("Using fast mode for STS")
+        tasks_list = ["STSBenchmark"]
+
     tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
     results = mteb.evaluate(
         tasks=tasks,
@@ -62,7 +67,8 @@ def evaluate_retrieval(
         "MSMARCOHardNegatives",
     ],
     languages: list[str] | None = None,
-    batch_size: int = 6
+    batch_size: int = 6,
+    fast_mode: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on retrieval task.
 
@@ -71,6 +77,10 @@ def evaluate_retrieval(
     # This benchmark has issues with specifying language
     # if languages and "MIRACLRetrievalHardNegatives" in tasks_list:
     #     tasks_list.remove("MIRACLRetrievalHardNegatives")
+
+    if fast_mode:
+        logger.info("Using fast mode for retrieval")
+        tasks_list = ["ArguAna"]
 
     tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
     results = mteb.evaluate(
@@ -99,12 +109,17 @@ def evaluate_classification(
         "ToxicConversationsClassification",  # This has .v2 version      
     ],
     languages: list[str] | None = None,
-    batch_size: int = 16
+    batch_size: int = 16,
+    fast_mode: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on classification task.
 
     Returns accuracy score.
     """
+    if fast_mode:
+        logger.info("Using fast mode for classification")
+        tasks_list = ["AmazonCounterfactualClassification"]
+
     tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
     results = mteb.evaluate(
         tasks=tasks,
@@ -130,12 +145,17 @@ def evaluate_clustering(
         "StackExchangeClustering"  # This has .v2 version
     ],
     languages: list[str] | None = None,
-    batch_size: int = 20
+    batch_size: int = 20,
+    fast_mode: bool = False
 ):
     """Evaluates a SentenceTransformer model on clustering task.
 
     Returns average V-measure score.
     """
+    if fast_mode:
+        logger.info("Using fast mode for clustering")
+        tasks_list = ["RedditClustering"]
+
     tasks = mteb.get_tasks(tasks=tasks_list, languages=languages, eval_splits=["test"])
     results = mteb.evaluate(
         tasks=tasks,
