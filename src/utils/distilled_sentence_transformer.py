@@ -50,7 +50,12 @@ class DistilledSentenceTransformer(SentenceTransformer):
         normalize_vector_before_projecting: bool = False,
         **kwargs
     ):
-        base_model = SentenceTransformer(model_name_or_path, device=device, trust_remote_code=True, **kwargs)
+        base_model = SentenceTransformer(
+            model_name_or_path, 
+            device=device, 
+            trust_remote_code=True,
+            **kwargs
+        )
         base_model.max_sequence_length = max_seq_length
         
         projection_head = ProjectionHead(
@@ -60,7 +65,7 @@ class DistilledSentenceTransformer(SentenceTransformer):
         )  
         modules = list(base_model._modules.values()) + [projection_head]
         super().__init__(modules=modules, device=device)
-
+        
         self.output_dim = output_dim
 
         if custom_model_name:

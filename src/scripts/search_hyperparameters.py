@@ -28,9 +28,7 @@ if __name__ == "__main__":
     )
 
     def model_init(trial: optuna.Trial = None):
-        # Get dimensions from config
-        backbone_output_dim = 512  # Set this from your config
-        target_dim = 32  # Set this from your config
+        global args
 
         if trial is None:
             # Default hyperparameters for initial model instantiation
@@ -38,15 +36,22 @@ if __name__ == "__main__":
             projection_type = "no_hidden"
             activation_fn = nn.ReLU()
         else:
-            # Hyperparameters to tune
-            dropout_rate = trial.suggest_float("dropout_rate", 0.0, 0.5)
+            dropout_rate = trial.suggest_categorical("dropout_rate", [0, 0.1, 0.2, 0.3])
             projection_type = trial.suggest_categorical(
                 "projection_type", 
-                ["no_hidden", "low_hidden", "high_hidden"]
+                [
+                    "no_hidden", 
+                    "low_hidden", 
+                    "high_hidden"
+                ]
             )
             activation_fn_str = trial.suggest_categorical(
                 "activation_fn",
-                ["ReLU", "SELU", "GELU"]
+                [
+                    "ReLU", 
+                    "SELU", 
+                    "GELU"
+                ]
             )
             match activation_fn_str:
                 case "ReLU":
@@ -56,28 +61,25 @@ if __name__ == "__main__":
                 case "GELU":
                     activation_fn = nn.GELU()
 
-        backbone_output_dim = 512
-        target_dim = 32
-
         match projection_type:
             case "high_hidden":
                 trainable_projection = nn.Sequential(
-                    nn.Linear(backbone_output_dim, backbone_output_dim * 4),
+                    nn.Linear(args.backbone_output_dim, args.backbone_output_dim * 4),
                     nn.Dropout(dropout_rate),
                     activation_fn,
-                    nn.Linear(backbone_output_dim * 4, target_dim)
+                    nn.Linear(args.backbone_output_dim * 4, args.target_dim)
                 )
             case "low_hidden":
                 trainable_projection = nn.Sequential(
-                    nn.Linear(backbone_output_dim, backbone_output_dim // 2),
+                    nn.Linear(args.backbone_output_dim, args.backbone_output_dim // 2),
                     nn.Dropout(dropout_rate),
                     activation_fn,
-                    nn.Linear(backbone_output_dim // 2, target_dim)
+                    nn.Linear(args.backbone_output_dim // 2, args.target_dim)
                 )
 
             case "no_hidden":
                 trainable_projection = nn.Sequential(
-                    nn.Linear(backbone_output_dim, target_dim),
+                    nn.Linear(args.backbone_output_dim, args.target_dim),
                     nn.Dropout(dropout_rate),
                     activation_fn,
                 )
@@ -87,10 +89,11 @@ if __name__ == "__main__":
 
     def hp_space(trial: optuna.Trial):
         return {
-            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True),
+            "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1, 0.2, 0.3]),
+            "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.01]),
         }
 
-    # Create training arguments
     training_args = TrainingArguments(
         num_train_epochs=3,
         per_device_train_batch_size=20000,
@@ -102,7 +105,6 @@ if __name__ == "__main__":
         dataloader_pin_memory=True
     )
 
-    # Initialize custom trainer with model_init
     trainer = SimilarityTrainer(
         model=None,
         model_init=model_init,

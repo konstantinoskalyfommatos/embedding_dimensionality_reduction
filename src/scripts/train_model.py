@@ -43,6 +43,7 @@ def train_model(
     output_path: str = None,
     positional_loss_factor: float = 1.0,
     lr_scheduler_type: str = "linear",
+    warmup_ratio: float = 0.2
 ) -> None:
 
     # Create training arguments
@@ -56,15 +57,15 @@ def train_model(
         logging_dir="./logs",
         logging_strategy="epoch",
         save_strategy="epoch",
-        save_total_limit=2,
+        save_total_limit=3,
         load_best_model_at_end=False,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         dataloader_drop_last=True,
         disable_tqdm=False,
-        warmup_ratio=0.0,
+        warmup_ratio=warmup_ratio,
         lr_scheduler_type=lr_scheduler_type,
-        dataloader_pin_memory=True
+        dataloader_pin_memory=True,
     )
 
     # Create optimizer
@@ -103,15 +104,15 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=2,
+    parser.add_argument("--epochs", type=int, default=3,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
     parser.add_argument("--positional_loss_factor", type=float, default=1,
                        help="Weight for positional vs similarity loss")
-    parser.add_argument("--train_batch_size", type=int, default=8192,
+    parser.add_argument("--train_batch_size", type=int, default=20000,
                        help="Batch size for training")
-    parser.add_argument("--val_batch_size", type=int, default=8192,
+    parser.add_argument("--val_batch_size", type=int, default=20000,
                        help="Batch size for validation")
     parser.add_argument("--lr_scheduler_type", type=str, default="linear",
                        help="Learning rate scheduler type")
@@ -126,7 +127,6 @@ def main():
             "Will be appended to the models path."
         )
     )
-                    
 
     args = parser.parse_args()
         
@@ -149,15 +149,11 @@ def main():
     logger.info(f"Output path: {output_path}")    
     
     logger.info("Creating trainable projection")
+
     trainable_projection = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim * 4),
+        nn.Linear(args.backbone_model_output_dim, args.target_dim),
         nn.ReLU(),
-        nn.Linear(args.backbone_model_output_dim * 4, args.target_dim)
     )
-    # trainable_projection = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
-    #     nn.ReLU(),
-    # )
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
