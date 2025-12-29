@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import os
 import logging
-import json
 
 from utils.config import EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
@@ -38,14 +37,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
     logger.info(f"Args: {args}")
     
-    projection_head = nn.Linear(args.backbone_model_output_dim, args.target_dim)
+    # Randomly select 32 distinct indices
+    indices = torch.randperm(args.backbone_model_output_dim)[:args.target_dim]
+
+    # Create selection matrix
+    M = torch.zeros(args.backbone_model_output_dim, args.target_dim)
+    M[indices, torch.arange(args.target_dim)] = 1.0
+    
+    projection_head = nn.Linear(args.backbone_model_output_dim, args.target_dim, bias=False)
+    projection_head.weight = nn.Parameter(M.t())
 
     print(projection_head)
 
     model_name = os.path.join(
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
-        "_random_projection"
+        "_random_selection"
     )
 
     custom_model = DistilledSentenceTransformer(
@@ -60,7 +67,7 @@ if __name__ == "__main__":
     # Evaluate the model
     cache_path = os.path.join(
         EVALUATION_RESULTS_PATH,
-        "random_projection",
+        "random_selection",
         args.backbone_model.replace("/", "__"),
     )
 

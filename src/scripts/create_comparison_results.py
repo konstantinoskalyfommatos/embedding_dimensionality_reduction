@@ -110,8 +110,12 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     ]
     ordered_cols.extend(remaining_tasks)
     
-    # Reorder the dataframe columns: avg columns first, then the rest
-    df = df[avg_cols + ordered_cols]
+    # Calculate overall average across all tasks (excluding AVG columns)
+    all_task_cols = ordered_cols
+    df["**AVG_OVERALL**"] = df[all_task_cols].mean(axis=1)
+    
+    # Reorder the dataframe columns: overall avg first, then category avgs, then the rest
+    df = df[["**AVG_OVERALL**"] + avg_cols + ordered_cols]
     df = df.sort_index()
      
     return df

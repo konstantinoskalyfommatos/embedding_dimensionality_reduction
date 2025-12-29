@@ -8,10 +8,22 @@ import os
 import torch
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
+from tqdm import tqdm
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from utils.config import PROJECT_ROOT
 
+
+class CustomDataset(Dataset):
+    def __init__(self, texts):
+        self.texts = texts
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        return self.texts[idx]
+    
 
 def calculate_embeddings(
     model: SentenceTransformer, 
@@ -20,6 +32,7 @@ def calculate_embeddings(
 ):
     all_embeddings = []
     with torch.no_grad():
+        # for batch in tqdm(dataloader, desc="Calculating embeddings"):
         for batch in dataloader:
             embeddings = model.encode(
                 batch,
@@ -42,9 +55,6 @@ def precalculate_embeddings(
 
     Saves the embeddings to disk for later use.
     """
-    def is_text_short_enough(text, max_len=200):
-        return len(text.split()) < max_len
-
     output_base_path = os.path.join(
         PROJECT_ROOT,
         "storage/precalculated_embeddings",
@@ -57,13 +67,13 @@ def precalculate_embeddings(
         trust_remote_code=True,
     ).to("cuda")
 
-    splits = [
-        # "validation",
-        "train",
-        "test"
-    ]
-    max_entries = 5_000_000
-    for split in splits:
+    model.max_seq_length = 300
+
+    split_to_max_entries = {
+        # "train": 2500000,
+        "validation": 250000
+    }
+    for split, max_entries in split_to_max_entries.items():
         print(f"Processing split: {split}")
         ds_split = load_dataset(
             dataset_path, 
@@ -73,19 +83,20 @@ def precalculate_embeddings(
         )
         print(f"Loaded {split} split from dataset: {dataset_path}")
 
-        filtered_examples = []
+        examples = []
         total_seen = 0
+        # for ex in tqdm(ds_split, desc="Loading examples"):
         for ex in ds_split:
-            if is_text_short_enough(ex[text_column]):
-                filtered_examples.append(ex)
+            examples.append(ex)
             total_seen += 1
             if total_seen >= max_entries:
                 break
 
-        print(f"Filtered {split} dataset to {len(filtered_examples)} examples.")
+        print(f"Filtered {split} dataset to {len(examples)} examples.")
 
-        texts = [ex[text_column] for ex in filtered_examples]
-        dataloader = DataLoader(texts, batch_size=batch_size, shuffle=False)
+        texts = [ex[text_column] for ex in examples]
+        dataset = CustomDataset(texts)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
         embeddings = calculate_embeddings(model, dataloader)
 
@@ -102,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_path", type=str, default="allenai/c4")
     parser.add_argument("--dataset_name", type=str, default="en")
     parser.add_argument("--text_column", type=str, default="text")
-    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--batch_size", type=int, default=8192)
     args = parser.parse_args()
 
     precalculate_embeddings(
