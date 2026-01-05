@@ -116,6 +116,10 @@ def main():
                        help="Batch size for validation")
     parser.add_argument("--lr_scheduler_type", type=str, default="linear",
                        help="Learning rate scheduler type")
+    parser.add_argument("--weight_decay", type=float, default=0.1,
+                       help="Weight decay for optimizer")
+    parser.add_argument("--warmup_ratio", type=float, default=0.3,
+                       help="Warmup ratio for learning rate scheduler")
 
     # Output configuration
     parser.add_argument(
@@ -188,10 +192,12 @@ def main():
         val_batch_size=args.val_batch_size,
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,
+        weight_decay=args.weight_decay,
         optimizer_params={'lr': args.learning_rate},
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
-        lr_scheduler_type=args.lr_scheduler_type
+        lr_scheduler_type=args.lr_scheduler_type,
+        warmup_ratio=args.warmup_ratio
     )
 
 

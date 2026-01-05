@@ -10,9 +10,9 @@ from utils.custom_datasets import get_precalculated_embeddings_dataset
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--backbone-model", type=str, default="jinaai/jina-embeddings-v2-small-en")
-    parser.add_argument("--target-dim", type=int, default=32)
-    parser.add_argument("--backbone-output-dim", type=int, default=512)
+    parser.add_argument("--backbone_model", type=str, default="jinaai/jina-embeddings-v2-small-en")
+    parser.add_argument("--target_dim", type=int, default=32)
+    parser.add_argument("--backbone_output_dim", type=int, default=512)
     args = parser.parse_args()
 
     # Prepare datasets
@@ -32,25 +32,23 @@ if __name__ == "__main__":
 
         if trial is None:
             # Default hyperparameters for initial model instantiation
-            dropout_rate = 0.1
             projection_type = "no_hidden"
             activation_fn = nn.ReLU()
         else:
-            dropout_rate = trial.suggest_categorical("dropout_rate", [0, 0.1, 0.2, 0.3])
             projection_type = trial.suggest_categorical(
                 "projection_type", 
                 [
                     "no_hidden", 
-                    "low_hidden", 
-                    "high_hidden"
+                    # "low_hidden", 
+                    # "high_hidden"
                 ]
             )
             activation_fn_str = trial.suggest_categorical(
                 "activation_fn",
                 [
                     "ReLU", 
-                    "SELU", 
-                    "GELU"
+                    # "SELU", 
+                    # "GELU"
                 ]
             )
             match activation_fn_str:
@@ -65,14 +63,12 @@ if __name__ == "__main__":
             case "high_hidden":
                 trainable_projection = nn.Sequential(
                     nn.Linear(args.backbone_output_dim, args.backbone_output_dim * 4),
-                    nn.Dropout(dropout_rate),
                     activation_fn,
                     nn.Linear(args.backbone_output_dim * 4, args.target_dim)
                 )
             case "low_hidden":
                 trainable_projection = nn.Sequential(
                     nn.Linear(args.backbone_output_dim, args.backbone_output_dim // 2),
-                    nn.Dropout(dropout_rate),
                     activation_fn,
                     nn.Linear(args.backbone_output_dim // 2, args.target_dim)
                 )
@@ -80,7 +76,6 @@ if __name__ == "__main__":
             case "no_hidden":
                 trainable_projection = nn.Sequential(
                     nn.Linear(args.backbone_output_dim, args.target_dim),
-                    nn.Dropout(dropout_rate),
                     activation_fn,
                 )
         
@@ -89,9 +84,9 @@ if __name__ == "__main__":
 
     def hp_space(trial: optuna.Trial):
         return {
-            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 5e-2, log=True),
             "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1, 0.2, 0.3]),
-            "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.01]),
+            "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.1, 0.01]),
         }
 
     training_args = TrainingArguments(

@@ -53,7 +53,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--backbone_model_output_dim",
-        default=512
+        default=512,
+        type=int
     )
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
