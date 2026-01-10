@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import torch
 import os
+import numpy as np
 
 from utils.config import PROJECT_ROOT
 
@@ -15,6 +16,39 @@ class EmbeddingsDataset(Dataset):
     def __getitem__(self, idx):
         return self.embeddings[idx]
 
+
+class RandomVectorsDataset(Dataset):
+    def __init__(
+        self, 
+        dim: int, 
+        len: int,
+        dtype: torch.dtype,
+        low: float = 0,
+        high: float = 1,
+    ):
+        np.random.seed(42)
+
+        self.dim = dim
+        self.len = len
+        vectors = torch.from_numpy(
+            np.random.uniform(
+                low=low, 
+                high=high, 
+                size=(len, dim)
+            )
+        ).to(dtype)
+        random_matrix = torch.randn(dim, dim, dtype=dtype)
+        q, r = torch.linalg.qr(random_matrix)
+
+        # Rotate vectors
+        self.vectors = torch.matmul(vectors, q)
+
+    def __len__(self):
+        return self.len
+    
+    def __getitem__(self, idx):
+        return self.vectors[idx]
+        
 
 def get_precalculated_embeddings_dataset(
     dataset_path: str, 

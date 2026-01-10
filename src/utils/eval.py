@@ -28,7 +28,7 @@ def evaluate_sts(
         "SICK-R"
     ],
     languages: list[str] | None = None,
-    batch_size: int = 4048,
+    batch_size: int = 4096,
     fast_mode: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on the STSBenchmark English dataset.

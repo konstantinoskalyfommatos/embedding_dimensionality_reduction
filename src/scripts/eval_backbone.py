@@ -20,13 +20,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--backbone_model", type=str, 
         help="Name or path of the backbone SentenceTransformer model",
-        default="jinaai/jina-embeddings-v2-small-en"
+        default="Alibaba-NLP/gte-multilingual-base"
     )
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
     parser.add_argument("--fast_mode", action="store_true")
+    parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
+    parser.add_argument("--classification_batch_size", type=int, default=6, help="Batch size for classification evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=20, help="Batch size for retrieval evaluation")
+    parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
 
     args = parser.parse_args()
 
@@ -39,7 +43,8 @@ if __name__ == "__main__":
         sts_score = evaluate_sts(
             model=model,
             cache_path=cache_path,
-            fast_mode=args.fast_mode
+            fast_mode=args.fast_mode,
+            batch_size=args.sts_batch_size
         )
         logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
@@ -47,7 +52,8 @@ if __name__ == "__main__":
         classification_score = evaluate_classification(
             model=model,
             cache_path=cache_path,
-            fast_mode=args.fast_mode
+            fast_mode=args.fast_mode,
+            batch_size=args.classification_batch_size
         )
         logger.info(f"Final classification results: {classification_score}")
 
@@ -55,7 +61,8 @@ if __name__ == "__main__":
         retrieval_score = evaluate_retrieval(
             model=model,
             cache_path=cache_path,
-            fast_mode=args.fast_mode
+            fast_mode=args.fast_mode,
+            batch_size=args.retrieval_batch_size
         )
         logger.info(f"Final retrieval results: {retrieval_score}")
 
@@ -63,6 +70,7 @@ if __name__ == "__main__":
         clustering_score = evaluate_clustering(
             model=model,
             cache_path=cache_path,
-            fast_mode=args.fast_mode
+            fast_mode=args.fast_mode,
+            batch_size=args.clustering_batch_size
         )
         logger.info(f"Final clustering results: {clustering_score}")
