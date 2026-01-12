@@ -25,9 +25,9 @@ class ProjectionHead(nn.Module):
         """Projects into lower dimensionality space"""
         vector = features['sentence_embedding']
         if self.normalize_vector_before_projecting:
-            nn.functional.normalize(vector, dim=0)
+            vector = nn.functional.normalize(vector, dim=0)
         features.update({
-            'sentence_embedding': self.projection(vector),
+            'sentence_embedding': self.projection(vector)
         })
         return features
 
