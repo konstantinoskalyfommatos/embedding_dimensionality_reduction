@@ -29,7 +29,8 @@ def evaluate_sts(
     ],
     languages: list[str] | None = None,
     batch_size: int = 4096,
-    fast_mode: bool = False
+    fast_mode: bool = False,
+    overwrite_cache: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on the STSBenchmark English dataset.
 
@@ -45,7 +46,7 @@ def evaluate_sts(
         model=model, 
         cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_strategy="only-missing",
+        overwrite_strategy="always" if overwrite_cache else "only-missing",
     )
     test_scores = []
     for task_result in results:
@@ -68,7 +69,8 @@ def evaluate_retrieval(
     ],
     languages: list[str] | None = None,
     batch_size: int = 6,
-    fast_mode: bool = False
+    fast_mode: bool = False,
+    overwrite_cache: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on retrieval task.
 
@@ -88,7 +90,7 @@ def evaluate_retrieval(
         model=model, 
         cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_strategy="only-missing"
+        overwrite_strategy="always" if overwrite_cache else "only-missing"
     )
     test_scores = []
     for task_result in results:
@@ -110,7 +112,8 @@ def evaluate_classification(
     ],
     languages: list[str] | None = None,
     batch_size: int = 16,
-    fast_mode: bool = False
+    fast_mode: bool = False,
+    overwrite_cache: bool = False
 ) -> float:
     """Evaluates a SentenceTransformer model on classification task.
 
@@ -126,7 +129,7 @@ def evaluate_classification(
         model=model,
         cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_strategy="only-missing"
+        overwrite_strategy="always" if overwrite_cache else "only-missing"
     )
     test_scores = []
     for task_result in results:
@@ -146,7 +149,8 @@ def evaluate_clustering(
     ],
     languages: list[str] | None = None,
     batch_size: int = 20,
-    fast_mode: bool = False
+    fast_mode: bool = False,
+    overwrite_cache: bool = False
 ):
     """Evaluates a SentenceTransformer model on clustering task.
 
@@ -162,7 +166,7 @@ def evaluate_clustering(
         model=model, 
         cache=ResultCache(cache_path=cache_path),
         encode_kwargs={'batch_size': batch_size},
-        overwrite_strategy="only-missing"
+        overwrite_strategy="always" if overwrite_cache else "only-missing"
     )
     test_scores = []
     for task_result in results:
