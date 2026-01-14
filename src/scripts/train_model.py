@@ -97,9 +97,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train a distilled sentence transformer model")
     
     # Model configuration
-    parser.add_argument("--backbone_model", type=str, default="jinaai/jina-embeddings-v2-small-en",
+    parser.add_argument("--backbone_model", type=str, default="Alibaba-NLP/gte-multilingual-base",
                        help="Backbone model name or path")
-    parser.add_argument("--backbone_model_output_dim", type=int, default=512,)
+    parser.add_argument("--backbone_model_output_dim", type=int, default=768)
     parser.add_argument("--target_dim", type=int, default=32,
                        help="Target dimension for distilled embeddings")
     

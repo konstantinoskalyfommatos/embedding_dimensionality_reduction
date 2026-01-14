@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("--normalize_vector_before_projecting", action="store_true")
     parser.add_argument("--fast_mode", action="store_true")
     parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
-    parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=48, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
 
