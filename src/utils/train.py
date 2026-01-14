@@ -188,12 +188,12 @@ class SimilarityTrainer(Trainer):
         high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
         """Compute pairwise cosine similarity preservation loss."""
-        low_dim_norm = torch.nn.functional.normalize(low_dim_embeddings, dim=1)
-        high_dim_norm = torch.nn.functional.normalize(high_dim_embeddings, dim=1)
+        # low_dim_norm = torch.nn.functional.normalize(low_dim_embeddings, dim=1)
+        # high_dim_norm = torch.nn.functional.normalize(high_dim_embeddings, dim=1)
         
         # Compute similarity matrices
-        low_dim_sim = torch.mm(low_dim_norm, low_dim_norm.t())
-        high_dim_sim = torch.mm(high_dim_norm, high_dim_norm.t())
+        low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
+        high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
         
         # Use triu_indices for better memory efficiency
         n = low_dim_sim.size(0)
