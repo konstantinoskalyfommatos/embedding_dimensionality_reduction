@@ -12,7 +12,7 @@ from typing import Any
 
 import torch.nn as nn
 import torch
-from torch.utils.data import Dataset, ConcatDataset
+from torch.utils.data import Dataset
 
 from transformers import TrainingArguments, EarlyStoppingCallback
 
@@ -38,12 +38,13 @@ def train_model(
     val_batch_size: int,
     epochs: int = 10,
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
-    optimizer_params: dict[str, Any] = {'lr': 1e-4},
+    optimizer_params: dict[str, Any] = {'lr': 1e-2},
     weight_decay: float = 0.00,
     output_path: str = None,
     positional_loss_factor: float = 1.0,
     lr_scheduler_type: str = "linear",
-    warmup_ratio: float = 0.2
+    warmup_ratio: float = 0.2,
+    resume_from_checkpoint: str = None
 ) -> None:
 
     # Create training arguments
@@ -57,10 +58,9 @@ def train_model(
         logging_dir="./logs",
         logging_strategy="epoch",
         save_strategy="epoch",
-        save_total_limit=3,
+        save_total_limit=None,
         load_best_model_at_end=False,
         metric_for_best_model="eval_loss",
-        greater_is_better=False,
         dataloader_drop_last=True,
         disable_tqdm=False,
         warmup_ratio=warmup_ratio,
@@ -85,11 +85,11 @@ def train_model(
         callbacks=[
             EarlyStoppingCallback(
                 early_stopping_patience=1, 
-                early_stopping_threshold=0.005
+                early_stopping_threshold=0.001
             )
         ],
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
 
 def main():
@@ -104,7 +104,7 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=3,
+    parser.add_argument("--epochs", type=int, default=20,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
@@ -130,6 +130,12 @@ def main():
             "Custom directory to save the model at. "
             "Will be appended to the models path."
         )
+    )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Checkpoint number to resume training from"
     )
 
     args = parser.parse_args()
@@ -161,24 +167,16 @@ def main():
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
-    train_datasets = []
-    val_datasets = []
-    for dataset_name in [
-        "allenai/c4", 
-    ]:
-        train_datasets.append(get_precalculated_embeddings_dataset(
-            dataset_path=dataset_name,
-            model_name=args.backbone_model.replace("/", "__"),
-            split="train",
-        ))
-        val_datasets.append(get_precalculated_embeddings_dataset(
-            dataset_path=dataset_name,
-            model_name=args.backbone_model.replace("/", "__"),
-            split="validation",
-        ))
-
-    train_dataset = ConcatDataset(train_datasets)
-    val_dataset = ConcatDataset(val_datasets)
+    train_dataset = get_precalculated_embeddings_dataset(
+        dataset_path="allenai/c4",
+        model_name=args.backbone_model.replace("/", "__"),
+        split="train",
+    )
+    val_dataset = get_precalculated_embeddings_dataset(
+        dataset_path="sentence-paraphrases",
+        model_name=args.backbone_model.replace("/", "__"),
+        split="validation",
+    )
 
     # Train the model
     logger.info("Starting training")
@@ -197,7 +195,12 @@ def main():
         output_path=output_path,
         positional_loss_factor=args.positional_loss_factor,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio
+        warmup_ratio=args.warmup_ratio,
+        resume_from_checkpoint=(
+            os.path.join(output_path, f"checkpoint-{args.resume_from_checkpoint}") 
+            if args.resume_from_checkpoint 
+            else None
+        )
     )
 
 

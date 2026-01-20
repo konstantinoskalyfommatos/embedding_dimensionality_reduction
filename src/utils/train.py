@@ -9,6 +9,8 @@ from transformers import Trainer
 import torch.nn.functional as F
 
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
+from utils.eval import compute_positional_loss, compute_angular_loss
+
 
 torch.manual_seed(42)
 
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 def collate_embeddings(features):
     batched_embeddings = torch.stack(features, dim=0)
     return {"input": batched_embeddings}
+
 
 class SimilarityTrainer(Trainer):
     def __init__(
@@ -46,7 +49,7 @@ class SimilarityTrainer(Trainer):
         low_dim_embeddings = model(high_dim_embeddings)
 
         # Compute losses
-        similarity_loss = 0.0
+        angular_loss = 0.0
         positional_loss = 0.0
         
         if self.positional_loss_factor > 0:
@@ -58,15 +61,15 @@ class SimilarityTrainer(Trainer):
             positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
-            similarity_loss = self._compute_similarity_loss(
+            angular_loss = self._compute_angular_loss(
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings
             )
-            similarity_loss.requires_grad_(True)
+            angular_loss.requires_grad_(True)
         
         return (
             self.positional_loss_factor * positional_loss + 
-            (1 - self.positional_loss_factor) * similarity_loss
+            (1 - self.positional_loss_factor) * angular_loss
         )
     
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
@@ -95,7 +98,7 @@ class SimilarityTrainer(Trainer):
 
                 low_dim_embeddings = model(high_dim_embeddings)
 
-                similarity_loss = 0.0
+                angular_loss = 0.0
                 positional_loss = 0.0
 
                 if self.positional_loss_factor > 0:
@@ -104,14 +107,14 @@ class SimilarityTrainer(Trainer):
                         high_dim_embeddings=high_dim_embeddings
                     )
                 if self.positional_loss_factor < 1:
-                    similarity_loss = self._compute_similarity_loss(
+                    angular_loss = self._compute_angular_loss(
                         low_dim_embeddings=low_dim_embeddings,
                         high_dim_embeddings=high_dim_embeddings
                     )
                 
                 loss = (
                     self.positional_loss_factor * positional_loss + 
-                    (1 - self.positional_loss_factor) * similarity_loss
+                    (1 - self.positional_loss_factor) * angular_loss
                 )
 
                 batch_size = high_dim_embeddings.shape[0]
@@ -129,45 +132,14 @@ class SimilarityTrainer(Trainer):
         low_dim_embeddings: torch.Tensor, 
         high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
-        """Compute pairwise distance preservation loss."""
-        low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
-        high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-        
-        # Use triu_indices for better memory efficiency
-        n = low_dim_dist.size(0)
-        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-        
-        low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
-        high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
-        
-        return torch.nn.functional.mse_loss(
-            low_dim_dist_upper, 
-            high_dim_dist_upper, 
-            reduction="mean"
-        )
+        return compute_positional_loss(low_dim_embeddings, high_dim_embeddings)
 
-    def _compute_similarity_loss(
+    def _compute_angular_loss(
         self, 
         low_dim_embeddings: torch.Tensor, 
         high_dim_embeddings: torch.Tensor
     ) -> torch.Tensor:
-        """Compute pairwise cosine similarity preservation loss."""
-        # Compute similarity matrices
-        low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
-        high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
-        
-        # Use triu_indices for better memory efficiency
-        n = low_dim_sim.size(0)
-        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-        
-        low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
-        high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
-
-        return torch.nn.functional.mse_loss(
-            low_dim_sim_upper, 
-            high_dim_sim_upper, 
-            reduction="mean"
-        ) * 100
+        return compute_angular_loss(low_dim_embeddings, high_dim_embeddings)
 
     def _compute_dot_product_loss(
         self,

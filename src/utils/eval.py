@@ -1,18 +1,101 @@
 from sentence_transformers import SentenceTransformer
-
 import torch
+import os
 import mteb
 from mteb.cache import ResultCache
-
 import logging
 
 from utils.config import PROJECT_ROOT
+
 
 # Set random seed for reproducibility
 torch.manual_seed(42)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def compute_positional_loss(
+    low_dim_embeddings: torch.Tensor, 
+    high_dim_embeddings: torch.Tensor
+) -> torch.Tensor:
+    """Compute pairwise distance preservation loss."""
+    low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
+    high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
+    
+    # Use triu_indices for better memory efficiency
+    n = low_dim_dist.size(0)
+    triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
+    
+    low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
+    high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
+    
+    return torch.nn.functional.mse_loss(
+        low_dim_dist_upper, 
+        high_dim_dist_upper, 
+        reduction="mean"
+    )
+
+
+def compute_angular_loss(
+    low_dim_embeddings: torch.Tensor, 
+    high_dim_embeddings: torch.Tensor
+) -> torch.Tensor:
+    """Compute pairwise cosine similarity preservation loss."""
+    # Compute similarity matrices
+    low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
+    high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
+    
+    # Use triu_indices for better memory efficiency
+    n = low_dim_sim.size(0)
+    triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
+    
+    low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
+    high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
+
+    return torch.nn.functional.mse_loss(
+        low_dim_sim_upper, 
+        high_dim_sim_upper, 
+        reduction="mean"
+    ) * 100
+
+
+# --- Eval functions ---
+
+
+def eval_intrinsic(
+    projection: torch.nn.Module,
+    backbone_model_path: str,
+    dataset_name = "sentence-paraphrases",
+    positional_or_angular: str = "positional"
+):
+    output_path = os.path.join(
+        PROJECT_ROOT,
+        "storage",
+        "precalculated_embeddings",
+        dataset_name.split("/")[-1],
+        backbone_model_path.replace("/", "__"),
+        "test_embeddings.pt"
+    )
+    
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(
+            f"Precalculated embeddings not found at {output_path}"
+        )
+    high_dim_embeddings: torch.Tensor = torch.load(output_path)
+    high_dim_embeddings = high_dim_embeddings.to("cuda")
+
+    low_dim_embeddings = projection(high_dim_embeddings)
+
+    if positional_or_angular == "angular":
+        return compute_angular_loss(
+            low_dim_embeddings=low_dim_embeddings,
+            high_dim_embeddings=high_dim_embeddings
+        )
+    return compute_positional_loss(
+        low_dim_embeddings=low_dim_embeddings,
+        high_dim_embeddings=high_dim_embeddings
+    )
 
 
 def evaluate_sts(

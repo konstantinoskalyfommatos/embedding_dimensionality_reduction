@@ -3,10 +3,16 @@ import torch
 import torch.nn as nn
 import os
 import logging
+import sys
+from safetensors.torch import load_file
 
 from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
-from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
+from utils.eval import (
+    evaluate_sts, evaluate_retrieval, 
+    evaluate_classification, evaluate_clustering,
+    eval_intrinsic
+)
 
 
 # Set random seed for reproducibility
@@ -44,14 +50,17 @@ if __name__ == "__main__":
     parser.add_argument("--retrieval_batch_size", type=int, default=48, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
-
+    
+    parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
+    parser.add_argument("--positional_or_angular", type=str, default="positional", help="Whether to use positional or angular loss for intrinsic evaluation")
+    
     args = parser.parse_args()
     logger.info(f"Args: {args}")
 
     projection_head = nn.Sequential(
         nn.Linear(args.backbone_model_output_dim, args.target_dim),
         nn.ReLU(),
-    )
+    ).to("cuda")
 
     print(projection_head)
 
@@ -70,6 +79,46 @@ if __name__ == "__main__":
             f"_poslossfactor_{float(args.positional_loss_factor)}"
         )
 
+    if args.eval_intrinsic:
+        projection_head.eval()
+        sorted_checkpoints = sorted(
+            os.listdir(trained_path),
+            key=lambda x: int(x.split("checkpoint-")[-1])
+        )
+        best_checkpoint = sorted_checkpoints[0]
+        best_loss = float('inf')
+        for checkpoint in sorted_checkpoints:
+            # Load trained weights
+            projection_head.load_state_dict(
+                load_file(
+                    os.path.join(
+                        trained_path, 
+                        str(checkpoint), 
+                        "model.safetensors"
+                    )
+                )
+            )
+
+            with torch.no_grad():
+                loss = eval_intrinsic(
+                    projection=projection_head,
+                    backbone_model_path=args.backbone_model
+                )
+            if loss < best_loss:
+                best_loss = loss
+                best_checkpoint = checkpoint
+            logger.info(f"Intrinsic test loss at {checkpoint}: {loss}")
+            torch.cuda.empty_cache()
+        logger.info(f"Best checkpoint: {best_checkpoint} with loss: {best_loss}")
+        sys.exit(0)
+
+    if args.checkpoint:
+        checkpoint_to_use = f"checkpoint-{args.checkpoint}"
+    else:
+        last_checkpoint = max([int(c.split("checkpoint-")[-1]) for c in os.listdir(trained_path)])
+        checkpoint_to_use = f"checkpoint-{last_checkpoint}"
+    logger.info(f"Using checkpoint: {checkpoint_to_use}")
+
     # NOTE: MTEB expect the model name to be in the format company/model_name
     model_name = trained_path.split("/checkpoint")[0].split("/")[-1].replace("__", "/")
 
@@ -81,12 +130,6 @@ if __name__ == "__main__":
         normalize_vector_before_projecting=args.normalize_vector_before_projecting
     )
 
-    # Load trained weights
-    if args.checkpoint:
-        checkpoint_to_use = f"checkpoint-{args.checkpoint}"
-    else:
-        checkpoint_to_use = max(os.listdir(trained_path))
-    logger.info(f"Using checkpoint: {checkpoint_to_use}")
     custom_model.load_checkpoint(
         os.path.join(
             trained_path, 
@@ -94,7 +137,6 @@ if __name__ == "__main__":
             "model.safetensors"
         )
     )
-
     custom_model.eval()
 
     # Evaluate the model
@@ -127,16 +169,6 @@ if __name__ == "__main__":
         )
         logger.info(f"Final retrieval results: {retrieval_score}")
 
-    if not args.skip_clustering:
-        clustering_score = evaluate_clustering(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.clustering_batch_size,
-            overwrite_cache=args.overwrite_cache
-        )
-        logger.info(f"Final clustering results: {clustering_score}")
-
     if not args.skip_classification:
         classification_score = evaluate_classification(
             model=custom_model,
@@ -146,4 +178,13 @@ if __name__ == "__main__":
             overwrite_cache=args.overwrite_cache
         )
         logger.info(f"Final classification results: {classification_score}")
-        
+
+    if not args.skip_clustering:
+        clustering_score = evaluate_clustering(
+            model=custom_model,
+            cache_path=cache_path,
+            fast_mode=args.fast_mode,
+            batch_size=args.clustering_batch_size,
+            overwrite_cache=args.overwrite_cache
+        )
+        logger.info(f"Final clustering results: {clustering_score}")
