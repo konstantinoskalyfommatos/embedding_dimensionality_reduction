@@ -69,7 +69,7 @@ def eval_intrinsic(
     dataset_name = "sentence-paraphrases",
     positional_or_angular: str = "positional"
 ):
-    output_path = os.path.join(
+    test_embeddings_path = os.path.join(
         PROJECT_ROOT,
         "storage",
         "precalculated_embeddings",
@@ -78,11 +78,11 @@ def eval_intrinsic(
         "test_embeddings.pt"
     )
     
-    if not os.path.exists(output_path):
+    if not os.path.exists(test_embeddings_path):
         raise FileNotFoundError(
-            f"Precalculated embeddings not found at {output_path}"
+            f"Precalculated embeddings not found at {test_embeddings_path}"
         )
-    high_dim_embeddings: torch.Tensor = torch.load(output_path)
+    high_dim_embeddings: torch.Tensor = torch.load(test_embeddings_path)
     high_dim_embeddings = high_dim_embeddings.to("cuda")
 
     low_dim_embeddings = projection(high_dim_embeddings)

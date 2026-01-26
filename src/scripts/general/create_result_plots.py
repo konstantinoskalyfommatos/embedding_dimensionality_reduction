@@ -55,7 +55,7 @@ def plot_model_performance(
     all_dimensions = sorted(model_data['dimension'].unique())
     
     # Create plots for each task
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig, axes = plt.subplots(2, 3, figsize=(30, 12))
     fig.suptitle(f'Performance vs Embedding Dimension: {model_base_name}', fontsize=16, fontweight='bold')
     
     axes = axes.flatten()
@@ -102,6 +102,9 @@ def plot_model_performance(
         # Set x-axis ticks to actual dimensions
         ax.set_xticks(all_dimensions)
         ax.set_xticklabels([int(d) for d in all_dimensions])
+        # Stretch x-axis while preserving linear ratios between dimensions
+        ax.set_xlim(all_dimensions[0], all_dimensions[-1])
+        ax.margins(x=0)
         
         # Set y-axis limits with padding
         if task_values:
@@ -149,7 +152,7 @@ def create_method_comparison_plots(
         all_dimensions = sorted(model_data['dimension'].unique())
         
         for task_name, column_name in task_columns.items():
-            fig, ax = plt.subplots(figsize=(12, 8))
+            fig, ax = plt.subplots(figsize=(20, 8))
             fig.suptitle(f'{task_name} Performance: {model_base_name}', fontsize=16, fontweight='bold')
             
             task_values = []
@@ -182,6 +185,9 @@ def create_method_comparison_plots(
             # Set x-axis ticks to actual dimensions
             ax.set_xticks(all_dimensions)
             ax.set_xticklabels([int(d) for d in all_dimensions])
+            # Stretch x-axis while preserving linear ratios between dimensions
+            ax.set_xlim(all_dimensions[0], all_dimensions[-1])
+            ax.margins(x=0)
             
             # Set y-axis limits with padding
             if task_values:

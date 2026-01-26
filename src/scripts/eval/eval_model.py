@@ -24,16 +24,8 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on STSBenchmark")
-    parser.add_argument(
-        "--backbone_model", type=str, 
-        help="Name or path of the backbone SentenceTransformer model",
-        default="Alibaba-NLP/gte-multilingual-base"
-    )
-    parser.add_argument(
-        "--backbone_model_output_dim",
-        default=768,
-        type=int
-    )
+    parser.add_argument("--backbone_model", type=str, default="Alibaba-NLP/gte-multilingual-base", help="Name or path of the backbone SentenceTransformer model")
+    parser.add_argument("--backbone_model_output_dim", default=768, type=int)
     parser.add_argument("--checkpoint", type=int, default=None, help="Checkpoint to use")
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")

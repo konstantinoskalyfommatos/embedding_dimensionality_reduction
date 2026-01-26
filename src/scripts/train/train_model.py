@@ -84,13 +84,17 @@ def train_model(
         data_collator=collate_embeddings,
         callbacks=[
             EarlyStoppingCallback(
-                early_stopping_patience=1, 
+                early_stopping_patience=3, 
                 early_stopping_threshold=0.001
             )
         ],
     )
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
+
+# NOTE: Models: 
+# - Alibaba-NLP/gte-multilingual-base
+# - jinaai/jina-embeddings-v2-small-en
 
 def main():
     """Main training function."""
@@ -104,7 +108,7 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=20,
+    parser.add_argument("--epochs", type=int, default=30,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
