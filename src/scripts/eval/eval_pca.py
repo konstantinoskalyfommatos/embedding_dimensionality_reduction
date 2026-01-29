@@ -68,7 +68,7 @@ if __name__ == "__main__":
     projection_matrix = pca_state["components"]  # Shape: (target_dim, backbone_dim)
     mean_vector = pca_state["mean"]  # Shape: (backbone_dim,)
     
-    projection_head = PCAProjection(mean_vector, projection_matrix)
+    projection_head = PCAProjection(mean_vector, projection_matrix).to("cuda")
     print(projection_head)
 
     if args.eval_intrinsic:

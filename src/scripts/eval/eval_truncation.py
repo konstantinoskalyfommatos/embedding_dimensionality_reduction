@@ -53,6 +53,7 @@ if __name__ == "__main__":
 
     projection_head = nn.Linear(args.backbone_model_output_dim, args.target_dim, bias=False)
     projection_head.weight = nn.Parameter(M.t())
+    projection_head = projection_head.to("cuda")
 
     print(projection_head)
 
