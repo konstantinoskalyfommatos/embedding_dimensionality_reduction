@@ -3,10 +3,11 @@ import torch
 import torch.nn as nn
 import os
 import logging
+import sys
 
 from utils.config import EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
-from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
+from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering, eval_intrinsic
 
 
 # Set random seed for reproducibility
@@ -37,6 +38,8 @@ if __name__ == "__main__":
     parser.add_argument("--classification_batch_size", type=int, default=6, help="Batch size for classification evaluation")
     parser.add_argument("--retrieval_batch_size", type=int, default=20, help="Batch size for retrieval evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
+    parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
+    parser.add_argument("--positional_or_angular", type=str, default="positional", help="Whether to use positional or angular loss for intrinsic evaluation")
 
     args = parser.parse_args()
     logger.info(f"Args: {args}")
@@ -52,6 +55,16 @@ if __name__ == "__main__":
     projection_head.weight = nn.Parameter(M.t())
 
     print(projection_head)
+
+    if args.eval_intrinsic:
+        projection_head.eval()
+        loss = eval_intrinsic(
+            projection=projection_head,
+            backbone_model_path=args.backbone_model,
+            positional_or_angular=args.positional_or_angular
+        )
+        logger.info(f"Intrinsic test loss: {loss}")
+        sys.exit(0)
 
     model_name = os.path.join(
         f"{args.backbone_model}"
