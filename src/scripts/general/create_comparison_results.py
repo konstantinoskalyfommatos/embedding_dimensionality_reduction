@@ -50,33 +50,36 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     
     # Find all 'results' directories recursively
     for root, dirs, _ in os.walk(results_dir):
-        if 'results' in dirs:
-            results_subdir = os.path.join(root, 'results')
+        if 'results' not in dirs:
+            continue
+        results_subdir = os.path.join(root, 'results')
+        
+        # Inside each results directory, look for model directories
+        for model_name in os.listdir(results_subdir):
+            model_path = os.path.join(results_subdir, model_name)
+            if not os.path.isdir(model_path):
+                continue
             
-            # Inside each results directory, look for model directories
-            for model_name in os.listdir(results_subdir):
-                model_path = os.path.join(results_subdir, model_name)
-                if not os.path.isdir(model_path):
-                    continue
-                
-                # Initialize model entry if not exists
-                if model_name not in all_results:
-                    all_results[model_name] = {}
-                
-                # Walk through model directory to find JSON files
-                for model_root, _, files in os.walk(model_path):
-                    for result_file in files:
-                        if not result_file.endswith(".json") or result_file == "model_meta.json":
-                            continue
-                        
-                        task_name = os.path.splitext(result_file)[0]
-                        
-                        # Only store if not already present (avoid duplicates)
-                        if task_name not in all_results[model_name]:
-                            with open(os.path.join(model_root, result_file), 'r') as f:
-                                results = json.load(f)
-                                test_scores = [subset['main_score'] for subset in results['scores']['test']]
-                                all_results[model_name][task_name] = sum(test_scores) / len(test_scores)
+            # Initialize model entry if not exists
+            if model_name not in all_results:
+                all_results[model_name] = {}
+            
+            # Walk through model directory to find JSON files
+            for model_root, _, files in os.walk(model_path):
+                for result_file in files:
+                    if not result_file.endswith(".json") or result_file == "model_meta.json":
+                        continue
+                    
+                    task_name = os.path.splitext(result_file)[0]
+                    
+                    # Only store if not already present (avoid duplicates)
+                    if task_name in all_results[model_name]:
+                        continue
+
+                    with open(os.path.join(model_root, result_file), 'r') as f:
+                        results = json.load(f)
+                        test_scores = [subset['main_score'] for subset in results['scores']['test']]
+                        all_results[model_name][task_name] = sum(test_scores) / len(test_scores)
     
     if not all_results:
         print("No results found to compile.")
@@ -85,37 +88,33 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     df = pd.DataFrame.from_dict(all_results, orient='index')
     df.index.name = 'Model'
     
-    # Reorder columns by task category and add average columns
-    ordered_cols = []
-    avg_cols = []
-    
+    cols = []
     for task_category, benchmarks in TASK_BENCHMARK_MAPPING.items():
         # Add individual benchmark columns
         for benchmark in benchmarks:
             if benchmark in df.columns:
-                ordered_cols.append(benchmark)
+                cols.append(benchmark)
         
         # Calculate and add average column for this category
         category_benchmarks = [b for b in benchmarks if b in df.columns]
-        if category_benchmarks:
-            avg_col_name = f"**AVG_{task_category.upper()}**"
-            df[avg_col_name] = df[category_benchmarks].mean(axis=1)
-            avg_cols.append(avg_col_name)
+        avg_col_name = f"**AVG_{task_category.upper()}**"
+        df[avg_col_name] = df[category_benchmarks].mean(axis=1)
     
+    avg_cols = [c for c in df.columns if c.startswith("**AVG_")]
+
     # Add any remaining tasks not in the mapping
     remaining_tasks = [
         task 
         for task in df.columns 
-        if task not in ordered_cols and not task.startswith("**AVG_")
+        if task not in cols and task not in avg_cols
     ]
-    ordered_cols.extend(remaining_tasks)
+    cols.extend(remaining_tasks)
     
-    # Calculate overall average across all tasks (excluding AVG columns)
-    all_task_cols = ordered_cols
-    df["**AVG_OVERALL**"] = df[all_task_cols].mean(axis=1)
+    # Calculate overall average across all tasks
+    df["**AVG_OVERALL**"] = df[avg_cols].mean(axis=1)
     
     # Reorder the dataframe columns: overall avg first, then category avgs, then the rest
-    df = df[["**AVG_OVERALL**"] + avg_cols + ordered_cols]
+    df = df[["**AVG_OVERALL**"] + avg_cols + cols]
     df = df.sort_index()
      
     return df
