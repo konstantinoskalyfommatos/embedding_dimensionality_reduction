@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Evaluate a distilled SentenceTransformer model on STSBenchmark")
-    parser.add_argument("--backbone_model", type=str, default="Alibaba-NLP/gte-multilingual-base", help="Name or path of the backbone SentenceTransformer model")
-    parser.add_argument("--backbone_model_output_dim", default=768, type=int)
+    parser.add_argument("--backbone_model", type=str, default="jinaai/jina-embeddings-v2-small-en", help="Name or path of the backbone SentenceTransformer model")
+    parser.add_argument("--backbone_model_output_dim", default=512, type=int)
     parser.add_argument("--checkpoint", type=int, default=None, help="Checkpoint to use")
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
@@ -39,38 +39,50 @@ if __name__ == "__main__":
     parser.add_argument("--normalize_vector_before_projecting", action="store_true")
     parser.add_argument("--fast_mode", action="store_true")
     parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
-    parser.add_argument("--retrieval_batch_size", type=int, default=48, help="Batch size for retrieval evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
     
     parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
+    parser.add_argument("--weight_exponent", type=int, default=2, help="Exponent to raise inverse distances to, in the loss function for intrinsic evaluation")
     parser.add_argument("--positional_or_angular", type=str, default="positional", help="Whether to use positional or angular loss for intrinsic evaluation")
+    
+    parser.add_argument("--custom_suffix", type=str, default=None, help="Was added to the normal model name")
     
     args = parser.parse_args()
     logger.info(f"Args: {args}")
 
     projection_head = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.target_dim),
+        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
         nn.ReLU(),
+        nn.Linear(args.backbone_model_output_dim, args.target_dim)
     ).to("cuda")
+
+    # projection_head = nn.Sequential(
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
+    #     nn.ReLU(),
+    # ).to("cuda")
 
     print(projection_head)
 
-    if args.model_saved_path:
-        trained_path = args.model_saved_path
-        # For MTEB
-        if not args.model_saved_path.endswith("/"):
-            args.model_saved_path += "/"
-    else:
-        trained_path = os.path.join(
-            TRAINED_MODELS_PATH,
-            args.backbone_model.replace("/", "__"),
-            f"{args.backbone_model.replace("/", "__")}"
-            f"_distilled_{args.target_dim}"
-            f"_batch_{args.train_batch_size}"
-            f"_poslossfactor_{float(args.positional_loss_factor)}"
-        )
+    trained_path = os.path.join(
+        TRAINED_MODELS_PATH,
+        args.backbone_model.replace("/", "__"),
+        f"{args.backbone_model.replace("/", "__")}"
+        f"_distilled_{args.target_dim}"
+        f"_batch_{args.train_batch_size}"
+        f"_poslossfactor_{float(args.positional_loss_factor)}"
+        f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
+    )
 
+    cache_path = os.path.join(
+        EVALUATION_RESULTS_PATH,
+        "trained_models",
+        args.backbone_model.replace("/", "__"),
+    )
+
+    # NOTE: MTEB expect the model name to be in the format company/model_name
+    model_name = trained_path.split("/checkpoint")[0].split("/")[-1].replace("__", "/")
     if args.eval_intrinsic:
         projection_head.eval()
         sorted_checkpoints = sorted(
@@ -90,12 +102,14 @@ if __name__ == "__main__":
                     )
                 )
             )
-
-            with torch.no_grad():
-                loss = eval_intrinsic(
-                    projection=projection_head,
-                    backbone_model_path=args.backbone_model
-                )
+            loss = eval_intrinsic(
+                projection=projection_head,
+                backbone_model_path=args.backbone_model,
+                positional_or_angular=args.positional_or_angular,
+                weight_exponent=args.weight_exponent,
+                cache_path=cache_path,
+                model_name=model_name
+            )
             if loss < best_loss:
                 best_loss = loss
                 best_checkpoint = checkpoint
@@ -110,9 +124,6 @@ if __name__ == "__main__":
         last_checkpoint = max([int(c.split("checkpoint-")[-1]) for c in os.listdir(trained_path)])
         checkpoint_to_use = f"checkpoint-{last_checkpoint}"
     logger.info(f"Using checkpoint: {checkpoint_to_use}")
-
-    # NOTE: MTEB expect the model name to be in the format company/model_name
-    model_name = trained_path.split("/checkpoint")[0].split("/")[-1].replace("__", "/")
 
     custom_model = DistilledSentenceTransformer(
         model_name_or_path=args.backbone_model,
@@ -130,16 +141,6 @@ if __name__ == "__main__":
         )
     )
     custom_model.eval()
-
-    # Evaluate the model
-    if "checkpoint" in trained_path:
-        trained_path = trained_path.split("/checkpoint")[0]
-
-    cache_path = os.path.join(
-        EVALUATION_RESULTS_PATH,
-        "trained_models",
-        trained_path.split("models/")[-1],
-    )
 
     if not args.skip_sts:
         sts_score = evaluate_sts(

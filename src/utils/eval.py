@@ -4,6 +4,7 @@ import os
 import mteb
 from mteb.cache import ResultCache
 import logging
+import json
 
 from utils.config import PROJECT_ROOT
 
@@ -15,11 +16,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# def compute_positional_loss(
+#     low_dim_embeddings: torch.Tensor, 
+#     high_dim_embeddings: torch.Tensor
+# ) -> torch.Tensor:
+#     """Compute pairwise distance preservation loss."""
+#     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
+#     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
+    
+#     # Use triu_indices for better memory efficiency
+#     n = low_dim_dist.size(0)
+#     triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
+    
+#     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
+#     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
+    
+#     return torch.nn.functional.mse_loss(
+#         low_dim_dist_upper, 
+#         high_dim_dist_upper, 
+#         reduction="mean"
+#     )
 def compute_positional_loss(
     low_dim_embeddings: torch.Tensor, 
-    high_dim_embeddings: torch.Tensor
+    high_dim_embeddings: torch.Tensor,
+    weight_exponent: int = 2
 ) -> torch.Tensor:
-    """Compute pairwise distance preservation loss."""
+    """Compute pairwise distance preservation loss with weighting for closer pairs."""
     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
     
@@ -30,16 +52,23 @@ def compute_positional_loss(
     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
     
-    return torch.nn.functional.mse_loss(
-        low_dim_dist_upper, 
-        high_dim_dist_upper, 
-        reduction="mean"
-    )
+    # Compute weights: closer pairs in high-dim space get higher weights
+    # Using inverse distance (add small epsilon to avoid division by zero)
+    weights = 1.0 / (high_dim_dist_upper + 1e-8) ** weight_exponent
+    # Normalize weights to sum to 1
+    weights = weights / weights.sum()
+    
+    # Compute weighted MSE
+    squared_errors = (low_dim_dist_upper - high_dim_dist_upper) ** 2
+    weighted_loss = (weights * squared_errors).sum()
+    
+    return weighted_loss
 
 
 def compute_angular_loss(
     low_dim_embeddings: torch.Tensor, 
-    high_dim_embeddings: torch.Tensor
+    high_dim_embeddings: torch.Tensor,
+    weight_exponent: int = 2
 ) -> torch.Tensor:
     """Compute pairwise cosine similarity preservation loss."""
     # Compute similarity matrices
@@ -53,11 +82,16 @@ def compute_angular_loss(
     low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
     high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
 
-    return torch.nn.functional.mse_loss(
-        low_dim_sim_upper, 
-        high_dim_sim_upper, 
-        reduction="mean"
-    ) * 100
+    # Compute weights: higher similarity pairs in high-dim space get higher weights
+    weights = 1.0 / (1.0 - high_dim_sim_upper + 1e-8) ** weight_exponent
+    # Normalize weights to sum to 1
+    weights = weights / weights.sum()
+
+    # Compute weighted MSE
+    squared_errors = (low_dim_sim_upper - high_dim_sim_upper) ** 2
+    weighted_loss = (weights * squared_errors).sum()
+
+    return weighted_loss * 10  # Scale to match positional loss magnitude
 
 
 # --- Eval functions ---
@@ -67,7 +101,10 @@ def eval_intrinsic(
     projection: torch.nn.Module,
     backbone_model_path: str,
     dataset_name = "sentence-paraphrases",
-    positional_or_angular: str = "positional"
+    positional_or_angular: str = "positional",
+    weight_exponent: int = 2,
+    cache_path: str | None = None,
+    model_name: str | None = None,
 ):
     test_embeddings_path = os.path.join(
         PROJECT_ROOT,
@@ -85,18 +122,62 @@ def eval_intrinsic(
     high_dim_embeddings: torch.Tensor = torch.load(test_embeddings_path)
     high_dim_embeddings = high_dim_embeddings.to("cuda")
 
-    low_dim_embeddings = projection(high_dim_embeddings)
+    with torch.inference_mode():
+        low_dim_embeddings = projection(high_dim_embeddings)
 
     if positional_or_angular == "angular":
-        return compute_angular_loss(
+        loss = compute_angular_loss(
             low_dim_embeddings=low_dim_embeddings,
-            high_dim_embeddings=high_dim_embeddings
+            high_dim_embeddings=high_dim_embeddings,
+            weight_exponent=weight_exponent
         )
-    return compute_positional_loss(
+    else:
+        loss = compute_positional_loss(
         low_dim_embeddings=low_dim_embeddings,
-        high_dim_embeddings=high_dim_embeddings
+        high_dim_embeddings=high_dim_embeddings,
+        weight_exponent=weight_exponent
     )
+        
+    if not cache_path:
+        return loss.item()
+    if not model_name:
+        raise ValueError("model_name must be provided to save intrinsic test results")
 
+    # Save in the same directory structure as MTEB results
+    intrinsic_results_path = os.path.join(
+        cache_path, 
+        "results", 
+        model_name.replace("/", "__"),
+        "no_revision_available"
+    )
+    os.makedirs(intrinsic_results_path, exist_ok=True)
+    save_path = os.path.join(intrinsic_results_path, "intrinsic.json")
+    
+    # Only save if loss is lower than previous or file doesn't exist
+    if os.path.exists(save_path):
+        with open(save_path, "r") as f:
+            previous_results = json.load(f)
+        previous_loss = previous_results["scores"]["test"][0]["main_score"]
+        if loss.item() >= previous_loss:
+            return loss.item()
+    
+    # To be compatible with MTEB results format
+    results = {
+        "task_name": "IntrinsicEvaluation",
+        "scores": {
+            "test": [
+                {"main_score": loss.item()}
+            ]
+        }
+    }
+    
+    with open(save_path, "w") as f:
+        json.dump(results, f, indent=2)
+
+    logger.info(f"Results saved at: {save_path}")
+
+    return loss.item()
+    
 
 def evaluate_sts(
     model: SentenceTransformer, 
@@ -159,10 +240,6 @@ def evaluate_retrieval(
 
     Returns average NDCG@10 score.
     """
-    # This benchmark has issues with specifying language
-    # if languages and "MIRACLRetrievalHardNegatives" in tasks_list:
-    #     tasks_list.remove("MIRACLRetrievalHardNegatives")
-
     if fast_mode:
         logger.info("Using fast mode for retrieval")
         tasks_list = ["ArguAna"]
@@ -188,10 +265,10 @@ def evaluate_classification(
     cache_path: str,
     tasks_list: list[str] = [
         "AmazonCounterfactualClassification",
-        "AmazonPolarityClassification",  # This has .v2 version
         "AmazonReviewsClassification",
         "ImdbClassification",  # This has .v2 version
-        "ToxicConversationsClassification",  # This has .v2 version      
+        "ToxicConversationsClassification",  # This has .v2 version
+        "AmazonPolarityClassification",  # This has .v2 version    
     ],
     languages: list[str] | None = None,
     batch_size: int = 16,

@@ -28,10 +28,12 @@ class SimilarityTrainer(Trainer):
         *args,
         target_dim: int,
         backbone_model_path: str,
+        weight_exponent: int,
         positional_loss_factor: float = 1.0,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
+        self.weight_exponent = weight_exponent
         self.positional_loss_factor = positional_loss_factor
         self.target_dim = target_dim
 
@@ -102,14 +104,16 @@ class SimilarityTrainer(Trainer):
                 positional_loss = 0.0
 
                 if self.positional_loss_factor > 0:
-                    positional_loss = self._compute_positional_loss(
+                    positional_loss = compute_positional_loss(
                         low_dim_embeddings=low_dim_embeddings,
-                        high_dim_embeddings=high_dim_embeddings
+                        high_dim_embeddings=high_dim_embeddings,
+                        weight_exponent=self.weight_exponent
                     )
                 if self.positional_loss_factor < 1:
-                    angular_loss = self._compute_angular_loss(
+                    angular_loss = compute_angular_loss(
                         low_dim_embeddings=low_dim_embeddings,
-                        high_dim_embeddings=high_dim_embeddings
+                        high_dim_embeddings=high_dim_embeddings,
+                        weight_exponent=self.weight_exponent
                     )
                 
                 loss = (
@@ -126,40 +130,3 @@ class SimilarityTrainer(Trainer):
         metrics = {f"{metric_key_prefix}_loss": avg_loss}
         
         return metrics
-
-    def _compute_positional_loss(
-        self, 
-        low_dim_embeddings: torch.Tensor, 
-        high_dim_embeddings: torch.Tensor
-    ) -> torch.Tensor:
-        return compute_positional_loss(low_dim_embeddings, high_dim_embeddings)
-
-    def _compute_angular_loss(
-        self, 
-        low_dim_embeddings: torch.Tensor, 
-        high_dim_embeddings: torch.Tensor
-    ) -> torch.Tensor:
-        return compute_angular_loss(low_dim_embeddings, high_dim_embeddings)
-
-    def _compute_dot_product_loss(
-        self,
-        low_dim_embeddings: torch.Tensor,
-        high_dim_embeddings: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute pairwise dot-product (Gram matrix) preservation loss."""
-        # Gram matrices (pairwise dot products)
-        low_dim_gram = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
-        high_dim_gram = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
-
-        # Use only upper triangle (excluding diagonal) for efficiency
-        n = low_dim_gram.size(0)
-        triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-
-        low_dim_upper = low_dim_gram[triu_indices[0], triu_indices[1]]
-        high_dim_upper = high_dim_gram[triu_indices[0], triu_indices[1]]
-
-        return torch.nn.functional.mse_loss(
-            low_dim_upper,
-            high_dim_upper,
-            reduction="mean"
-        )

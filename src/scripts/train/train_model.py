@@ -44,7 +44,8 @@ def train_model(
     positional_loss_factor: float = 1.0,
     lr_scheduler_type: str = "linear",
     warmup_ratio: float = 0.2,
-    resume_from_checkpoint: str = None
+    resume_from_checkpoint: str = None,
+    weight_exponent: int = 2
 ) -> None:
 
     # Create training arguments
@@ -54,10 +55,13 @@ def train_model(
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=val_batch_size,
         weight_decay=weight_decay,
-        eval_strategy="epoch" if val_dataset is not None else "no",
+        eval_strategy="steps" if val_dataset is not None else "no",
+        eval_steps=100,
         logging_dir="./logs",
-        logging_strategy="epoch",
-        save_strategy="epoch",
+        logging_strategy="steps",
+        logging_steps=100,
+        save_strategy="steps",
+        save_steps=100,
         save_total_limit=None,
         load_best_model_at_end=False,
         metric_for_best_model="eval_loss",
@@ -101,9 +105,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train a distilled sentence transformer model")
     
     # Model configuration
-    parser.add_argument("--backbone_model", type=str, default="Alibaba-NLP/gte-multilingual-base",
+    parser.add_argument("--backbone_model", type=str, default="jinaai/jina-embeddings-v2-small-en",
                        help="Backbone model name or path")
-    parser.add_argument("--backbone_model_output_dim", type=int, default=768)
+    parser.add_argument("--backbone_model_output_dim", type=int, default=512)
     parser.add_argument("--target_dim", type=int, default=32,
                        help="Target dimension for distilled embeddings")
     
@@ -124,23 +128,12 @@ def main():
                        help="Weight decay for optimizer")
     parser.add_argument("--warmup_ratio", type=float, default=0.3,
                        help="Warmup ratio for learning rate scheduler")
+    parser.add_argument("--weight_exponent", type=int, default=2, 
+                        help="Exponent to raise inverse distances to, in the loss function")
 
     # Output configuration
-    parser.add_argument(
-        "--custom_model_save_dir", 
-        type=str, 
-        default=None,
-        help=(
-            "Custom directory to save the model at. "
-            "Will be appended to the models path."
-        )
-    )
-    parser.add_argument(
-        "--resume_from_checkpoint",
-        type=str,
-        default=None,
-        help="Checkpoint number to resume training from"
-    )
+    parser.add_argument("--custom_suffix", type=str, default=None, help="Will be added to the normal model name")
+    parser.add_argument("--resume_from_checkpoint", type=int, default=None, help="Checkpoint number to resume training from")
 
     args = parser.parse_args()
         
@@ -149,13 +142,10 @@ def main():
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
         f"_poslossfactor_{float(args.positional_loss_factor)}"
+        f"{'_'+args.custom_suffix if args.custom_suffix else ''}"
     )
     
-    custom_save_dir = args.custom_model_save_dir
-    if custom_save_dir:
-        output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), custom_save_dir, model_name)
-    else:
-        output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), model_name)
+    output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), model_name)
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Backbone model: {args.backbone_model}")
@@ -163,6 +153,12 @@ def main():
     logger.info(f"Output path: {output_path}")    
     
     logger.info("Creating trainable projection")
+
+    # trainable_projection = nn.Sequential(
+    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
+    #     nn.ReLU(),
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
+    # )
 
     trainable_projection = nn.Sequential(
         nn.Linear(args.backbone_model_output_dim, args.target_dim),
@@ -204,7 +200,8 @@ def main():
             os.path.join(output_path, f"checkpoint-{args.resume_from_checkpoint}") 
             if args.resume_from_checkpoint 
             else None
-        )
+        ),
+        weight_exponent=args.weight_exponent
     )
 
 

@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 
 
 TASK_BENCHMARK_MAPPING = {
+    "intrinsic": ["intrinsic"],
     "sts": [
         "STS12",
         "STS13",
@@ -92,9 +93,15 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     for task_category, benchmarks in TASK_BENCHMARK_MAPPING.items():
         # Add individual benchmark columns
         for benchmark in benchmarks:
-            if benchmark in df.columns:
+            if benchmark in df.columns and benchmark != "intrinsic":
                 cols.append(benchmark)
         
+        # Simple add the intrinsic score if available
+        if task_category == "intrinsic":
+            df["**INTRINSIC_SCORE**"] = df["intrinsic"]
+            cols.append("**INTRINSIC_SCORE**")
+            continue
+
         # Calculate and add average column for this category
         category_benchmarks = [b for b in benchmarks if b in df.columns]
         avg_col_name = f"**AVG_{task_category.upper()}**"
