@@ -22,7 +22,7 @@ if __name__ == "__main__":
         split="train",
     )
     val_dataset = get_precalculated_embeddings_dataset(
-        dataset_path="allenai/c4",
+        dataset_path="sentence-paraphrases",
         model_name=args.backbone_model.replace("/", "__"),
         split="validation",
     )

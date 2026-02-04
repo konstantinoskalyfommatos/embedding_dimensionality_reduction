@@ -43,7 +43,7 @@ def train_model(
     output_path: str = None,
     positional_loss_factor: float = 1.0,
     lr_scheduler_type: str = "linear",
-    warmup_ratio: float = 0.2,
+    warmup_ratio: float = 0.0,
     resume_from_checkpoint: str = None,
     weight_exponent: int = 2
 ) -> None:
@@ -83,6 +83,7 @@ def train_model(
         eval_dataset=val_dataset,
         target_dim=target_dim,
         backbone_model_path=backbone_model_path,
+        weight_exponent=weight_exponent,
         positional_loss_factor=positional_loss_factor,
         optimizers=(optimizer, None),
         data_collator=collate_embeddings,
@@ -112,7 +113,7 @@ def main():
                        help="Target dimension for distilled embeddings")
     
     # Training configuration
-    parser.add_argument("--epochs", type=int, default=30,
+    parser.add_argument("--epochs", type=int, default=10,
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
@@ -126,7 +127,7 @@ def main():
                        help="Learning rate scheduler type")
     parser.add_argument("--weight_decay", type=float, default=0.1,
                        help="Weight decay for optimizer")
-    parser.add_argument("--warmup_ratio", type=float, default=0.3,
+    parser.add_argument("--warmup_ratio", type=float, default=0.1,
                        help="Warmup ratio for learning rate scheduler")
     parser.add_argument("--weight_exponent", type=int, default=2, 
                         help="Exponent to raise inverse distances to, in the loss function")
@@ -154,16 +155,16 @@ def main():
     
     logger.info("Creating trainable projection")
 
-    # trainable_projection = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
-    #     nn.ReLU(),
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
-    # )
-
     trainable_projection = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.target_dim),
+        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
         nn.ReLU(),
+        nn.Linear(args.backbone_model_output_dim, args.target_dim)
     )
+
+    # trainable_projection = nn.Sequential(
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
+    #     nn.ReLU(),
+    # )
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")

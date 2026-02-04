@@ -106,6 +106,7 @@ if __name__ == "__main__":
                 projection=projection_head,
                 backbone_model_path=args.backbone_model,
                 positional_or_angular=args.positional_or_angular,
+                checkpoint=checkpoint.split("checkpoint-")[-1],
                 weight_exponent=args.weight_exponent,
                 cache_path=cache_path,
                 model_name=model_name

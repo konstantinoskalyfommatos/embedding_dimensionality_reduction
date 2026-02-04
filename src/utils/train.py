@@ -55,17 +55,19 @@ class SimilarityTrainer(Trainer):
         positional_loss = 0.0
         
         if self.positional_loss_factor > 0:
-            positional_loss = self._compute_positional_loss(
+            positional_loss = compute_positional_loss(
                 low_dim_embeddings=low_dim_embeddings,
-                high_dim_embeddings=high_dim_embeddings
+                high_dim_embeddings=high_dim_embeddings,
+                weight_exponent=self.weight_exponent
             )
 
             positional_loss.requires_grad_(True)
 
         if self.positional_loss_factor < 1:
-            angular_loss = self._compute_angular_loss(
+            angular_loss = compute_angular_loss(
                 low_dim_embeddings=low_dim_embeddings,
-                high_dim_embeddings=high_dim_embeddings
+                high_dim_embeddings=high_dim_embeddings,
+                weight_exponent=self.weight_exponent
             )
             angular_loss.requires_grad_(True)
         

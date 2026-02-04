@@ -91,7 +91,7 @@ def compute_angular_loss(
     squared_errors = (low_dim_sim_upper - high_dim_sim_upper) ** 2
     weighted_loss = (weights * squared_errors).sum()
 
-    return weighted_loss * 10  # Scale to match positional loss magnitude
+    return weighted_loss
 
 
 # --- Eval functions ---
@@ -103,6 +103,7 @@ def eval_intrinsic(
     dataset_name = "sentence-paraphrases",
     positional_or_angular: str = "positional",
     weight_exponent: int = 2,
+    checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
 ):
@@ -164,6 +165,7 @@ def eval_intrinsic(
     # To be compatible with MTEB results format
     results = {
         "task_name": "IntrinsicEvaluation",
+        "checkpoint": checkpoint,
         "scores": {
             "test": [
                 {"main_score": loss.item()}
