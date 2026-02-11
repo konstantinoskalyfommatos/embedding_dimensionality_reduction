@@ -16,61 +16,49 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# def compute_positional_loss(
-#     low_dim_embeddings: torch.Tensor, 
-#     high_dim_embeddings: torch.Tensor
-# ) -> torch.Tensor:
-#     """Compute pairwise distance preservation loss."""
-#     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
-#     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-    
-#     # Use triu_indices for better memory efficiency
-#     n = low_dim_dist.size(0)
-#     triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-    
-#     low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
-#     high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
-    
-#     return torch.nn.functional.mse_loss(
-#         low_dim_dist_upper, 
-#         high_dim_dist_upper, 
-#         reduction="mean"
-#     )
 def compute_positional_loss(
-    low_dim_embeddings: torch.Tensor, 
+    low_dim_embeddings: torch.Tensor,
     high_dim_embeddings: torch.Tensor,
-    weight_exponent: int = 2
+    weight_exponent: float = 1.0,
+    eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Compute pairwise distance preservation loss with weighting for closer pairs."""
+    """Compute weighted pairwise distance preservation loss.
+
+    L = (1 / n) * sum_{i<j} w_ij * (d_low(x_i, x_j) - d_high(x_i, x_j))^2
+    where w_ij = 1 / (d_high(x_i, x_j) + eps)^m
+    """
     low_dim_dist = torch.cdist(low_dim_embeddings, low_dim_embeddings, p=2)
     high_dim_dist = torch.cdist(high_dim_embeddings, high_dim_embeddings, p=2)
-    
-    # Use triu_indices for better memory efficiency
+
     n = low_dim_dist.size(0)
-    triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-    
-    low_dim_dist_upper = low_dim_dist[triu_indices[0], triu_indices[1]]
-    high_dim_dist_upper = high_dim_dist[triu_indices[0], triu_indices[1]]
-    
-    # Compute weights: closer pairs in high-dim space get higher weights
-    # Using inverse distance (add small epsilon to avoid division by zero)
-    weights = 1.0 / (high_dim_dist_upper + 1e-8) ** weight_exponent
-    # Normalize weights to sum to 1
-    weights = weights / weights.sum()
-    
-    # Compute weighted MSE
-    squared_errors = (low_dim_dist_upper - high_dim_dist_upper) ** 2
-    weighted_loss = (weights * squared_errors).sum()
-    
-    return weighted_loss
+    triu_indices = torch.triu_indices(
+        n, n, offset=1, device=low_dim_embeddings.device
+    )
+
+    low_d = low_dim_dist[triu_indices[0], triu_indices[1]]
+    high_d = high_dim_dist[triu_indices[0], triu_indices[1]]
+
+    if weight_exponent == 0:
+        return (low_d - high_d).pow(2).mean()
+
+    weights = 1.0 / (high_d + eps).pow(weight_exponent)
+    loss = weights * (low_d - high_d).pow(2)
+
+    return loss.mean()
 
 
 def compute_angular_loss(
     low_dim_embeddings: torch.Tensor, 
     high_dim_embeddings: torch.Tensor,
-    weight_exponent: int = 2
+    weight_exponent: int = 0,
+    eps: float = 1e-8,
+    loss_factor: int = 100
 ) -> torch.Tensor:
     """Compute pairwise cosine similarity preservation loss."""
+    # Normalize embeddings to unit vectors
+    low_dim_embeddings = torch.nn.functional.normalize(low_dim_embeddings, p=2, dim=1)
+    high_dim_embeddings = torch.nn.functional.normalize(high_dim_embeddings, p=2, dim=1)
+    
     # Compute similarity matrices
     low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
     high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
@@ -82,16 +70,14 @@ def compute_angular_loss(
     low_dim_sim_upper = low_dim_sim[triu_indices[0], triu_indices[1]]
     high_dim_sim_upper = high_dim_sim[triu_indices[0], triu_indices[1]]
 
-    # Compute weights: higher similarity pairs in high-dim space get higher weights
-    weights = 1.0 / (1.0 - high_dim_sim_upper + 1e-8) ** weight_exponent
-    # Normalize weights to sum to 1
-    weights = weights / weights.sum()
+    if weight_exponent == 0:
+        return (low_dim_sim_upper - high_dim_sim_upper).pow(2).mean() * loss_factor
+    
+    weights = 1.0 / (1.0 - high_dim_sim_upper + eps).pow(weight_exponent)
 
-    # Compute weighted MSE
-    squared_errors = (low_dim_sim_upper - high_dim_sim_upper) ** 2
-    weighted_loss = (weights * squared_errors).sum()
+    loss = weights * (low_dim_sim_upper - high_dim_sim_upper).pow(2) * loss_factor
 
-    return weighted_loss
+    return loss.mean()
 
 
 # --- Eval functions ---
@@ -102,7 +88,7 @@ def eval_intrinsic(
     backbone_model_path: str,
     dataset_name = "sentence-paraphrases",
     positional_or_angular: str = "positional",
-    weight_exponent: int = 2,
+    weight_exponent: int = 1,
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
