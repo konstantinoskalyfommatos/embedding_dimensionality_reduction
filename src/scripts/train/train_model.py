@@ -30,7 +30,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def train_model(
     trainable_projection: nn.Module,
-    backbone_model_path: str,
     target_dim: int,
     train_dataset: Dataset,
     val_dataset: Dataset,
@@ -55,7 +54,7 @@ def train_model(
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=val_batch_size,
         weight_decay=weight_decay,
-        eval_strategy="steps" if val_dataset is not None else "no",
+        eval_strategy="steps",
         eval_steps=100,
         logging_dir="./logs",
         logging_strategy="steps",
@@ -82,7 +81,6 @@ def train_model(
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         target_dim=target_dim,
-        backbone_model_path=backbone_model_path,
         weight_exponent=weight_exponent,
         positional_loss_factor=positional_loss_factor,
         optimizers=(optimizer, None),
@@ -155,16 +153,16 @@ def main():
     
     logger.info("Creating trainable projection")
 
-    trainable_projection = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
-        nn.ReLU(),
-        nn.Linear(args.backbone_model_output_dim, args.target_dim)
-    )
-
     # trainable_projection = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
+    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
     #     nn.ReLU(),
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
     # )
+
+    trainable_projection = nn.Sequential(
+        nn.Linear(args.backbone_model_output_dim, args.target_dim),
+        nn.ReLU(),
+    )
     trainable_projection.to(torch.device("cuda"))
     
     logger.info("Preparing datasets")
@@ -183,7 +181,6 @@ def main():
     logger.info("Starting training")
     train_model(
         trainable_projection=trainable_projection,
-        backbone_model_path=args.backbone_model,
         target_dim=args.target_dim,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
