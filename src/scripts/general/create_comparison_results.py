@@ -104,18 +104,9 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
 
         # Calculate and add average column for this category
         category_benchmarks = [b for b in benchmarks if b in df.columns]
-        avg_col_name = f"**AVG_{task_category.upper()}**"
-        df[avg_col_name] = df[category_benchmarks].mean(axis=1)
+        df[f"**AVG_{task_category.upper()}**"] = df[category_benchmarks].mean(axis=1)
     
     avg_cols = [c for c in df.columns if c.startswith("**AVG_")]
-
-    # Add any remaining tasks not in the mapping
-    remaining_tasks = [
-        task 
-        for task in df.columns 
-        if task not in cols and task not in avg_cols
-    ]
-    cols.extend(remaining_tasks)
     
     # Calculate overall average across all tasks
     df["**AVG_OVERALL**"] = df[avg_cols].mean(axis=1)

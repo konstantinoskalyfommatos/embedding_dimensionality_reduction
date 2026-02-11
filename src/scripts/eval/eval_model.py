@@ -30,38 +30,40 @@ if __name__ == "__main__":
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--positional_loss_factor", type=float, default=1.0, help="Weight for positional loss used during training")
     parser.add_argument("--train_batch_size", type=int, help="Batch size used for training", default=20000)
-    parser.add_argument("--model_saved_path", type=str, required=False, default=None, help="Custom path where the model was saved at")
+    parser.add_argument("--normalize_vector_before_projecting", action="store_true")
+
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
+
     parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
-    parser.add_argument("--normalize_vector_before_projecting", action="store_true")
     parser.add_argument("--fast_mode", action="store_true")
+
     parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
     parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
     
     parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
-    parser.add_argument("--weight_exponent", type=int, default=2, help="Exponent to raise inverse distances to, in the loss function for intrinsic evaluation")
-    parser.add_argument("--positional_or_angular", type=str, default="positional", help="Whether to use positional or angular loss for intrinsic evaluation")
+    parser.add_argument("--weight_exponent", type=int, default=0, help="Exponent to raise inverse distances to, in the loss function for intrinsic evaluation")
+    parser.add_argument("--positional_or_angular", type=str, default="angular", help="Whether to use positional or angular loss for intrinsic evaluation")
     
     parser.add_argument("--custom_suffix", type=str, default=None, help="Was added to the normal model name")
     
     args = parser.parse_args()
     logger.info(f"Args: {args}")
 
-    projection_head = nn.Sequential(
-        nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
-        nn.ReLU(),
-        nn.Linear(args.backbone_model_output_dim, args.target_dim)
-    ).to("cuda")
-
     # projection_head = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim),
+    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
     #     nn.ReLU(),
+    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
     # ).to("cuda")
+
+    projection_head = nn.Sequential(
+        nn.Linear(args.backbone_model_output_dim, args.target_dim),
+        nn.ReLU(),
+    ).to("cuda")
 
     print(projection_head)
 
@@ -89,6 +91,7 @@ if __name__ == "__main__":
             os.listdir(trained_path),
             key=lambda x: int(x.split("checkpoint-")[-1])
         )
+
         best_checkpoint = sorted_checkpoints[0]
         best_loss = float('inf')
         for checkpoint in sorted_checkpoints:
@@ -116,14 +119,12 @@ if __name__ == "__main__":
                 best_checkpoint = checkpoint
             logger.info(f"Intrinsic test loss at {checkpoint}: {loss}")
             torch.cuda.empty_cache()
+
         logger.info(f"Best checkpoint: {best_checkpoint} with loss: {best_loss}")
         sys.exit(0)
 
-    if args.checkpoint:
-        checkpoint_to_use = f"checkpoint-{args.checkpoint}"
-    else:
-        last_checkpoint = max([int(c.split("checkpoint-")[-1]) for c in os.listdir(trained_path)])
-        checkpoint_to_use = f"checkpoint-{last_checkpoint}"
+    assert args.checkpoint is not None, "Please provide a checkpoint"
+    checkpoint_to_use = f"checkpoint-{args.checkpoint}"
     logger.info(f"Using checkpoint: {checkpoint_to_use}")
 
     custom_model = DistilledSentenceTransformer(
