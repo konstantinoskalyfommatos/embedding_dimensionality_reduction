@@ -9,6 +9,9 @@ if not PROJECT_ROOT:
     raise ValueError("PROJECT_ROOT environment variable not set")
 
 
+STORAGE_PATH = os.path.join(PROJECT_ROOT, "storage")
+
+
 EVALUATION_RESULTS_PATH = os.path.join(
     PROJECT_ROOT,
     "storage",

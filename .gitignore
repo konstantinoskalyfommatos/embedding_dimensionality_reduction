@@ -5,3 +5,4 @@ nohup.out
 storage/
 trainer_output
 notes.md
+optuna_study.db
