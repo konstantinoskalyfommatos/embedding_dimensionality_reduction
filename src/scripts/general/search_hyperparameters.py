@@ -3,9 +3,25 @@ from argparse import ArgumentParser
 import torch
 import torch.nn as nn
 import optuna
+import os
 
 from utils.train import SimilarityTrainer, collate_embeddings
 from utils.custom_datasets import get_precalculated_embeddings_dataset
+from utils.config import STORAGE_PATH
+
+
+def save_to_csv(
+    output_filepath: str,
+    study_name: str = "projection_search", 
+    storage: str = "sqlite:///optuna_study.db",
+):
+    study = optuna.load_study(
+        study_name=study_name,
+        storage=storage
+    )
+
+    df = study.trials_dataframe()
+    df.to_csv(output_filepath, index=False)
 
 
 if __name__ == "__main__":
@@ -85,15 +101,25 @@ if __name__ == "__main__":
     def hp_space(trial: optuna.Trial):
         return {
             "learning_rate": trial.suggest_float("learning_rate", 1e-5, 5e-2, log=True),
-            "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1, 0.2, 0.3]),
-            "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.1, 0.01]),
+            "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1]),
+            "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.1]),
         }
 
     training_args = TrainingArguments(
-        num_train_epochs=3,
+        output_dir=os.path.join(STORAGE_PATH, "optuna_results"),
+        num_train_epochs=10,
         per_device_train_batch_size=20000,
         per_device_eval_batch_size=20000,
         metric_for_best_model="eval_loss",
+        eval_strategy="steps",
+        eval_steps=100,
+        logging_dir="./logs",
+        logging_strategy="steps",
+        logging_steps=100,
+        save_strategy="steps",
+        save_steps=100,
+        save_total_limit=None,
+        load_best_model_at_end=False,
         greater_is_better=False,
         dataloader_drop_last=True,
         disable_tqdm=True,
@@ -107,8 +133,8 @@ if __name__ == "__main__":
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         target_dim=args.target_dim,
-        backbone_model_path=args.backbone_model,
-        positional_loss_factor=1.0,
+        positional_loss_factor=0.0,
+        weight_exponent=0,
         data_collator=collate_embeddings,
     )
     
@@ -117,7 +143,12 @@ if __name__ == "__main__":
         hp_space=hp_space,
         direction="minimize",
         backend="optuna",
-        n_trials=50,
+        n_trials=20,
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=2),
+        storage="sqlite:///optuna_study.db",
+        study_name="projection_search",
+        load_if_exists=True,
     )
     print(trials)
+
+    save_to_csv(output_filepath=os.path.join(STORAGE_PATH, "optuna_results", "all_trials.csv"))
