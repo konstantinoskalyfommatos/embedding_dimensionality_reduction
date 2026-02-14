@@ -52,7 +52,7 @@ def compute_angular_loss(
     high_dim_embeddings: torch.Tensor,
     weight_exponent: int = 0,
     eps: float = 1e-8,
-    loss_factor: int = 100
+    loss_factor: int = 1  # NOTE: Try out 25
 ) -> torch.Tensor:
     """Compute pairwise cosine similarity preservation loss."""
     # Normalize embeddings to unit vectors
@@ -74,10 +74,7 @@ def compute_angular_loss(
         return (low_dim_sim_upper - high_dim_sim_upper).pow(2).mean() * loss_factor
     
     weights = 1.0 / (1.0 - high_dim_sim_upper + eps).pow(weight_exponent)
-
-    loss = weights * (low_dim_sim_upper - high_dim_sim_upper).pow(2) * loss_factor
-
-    return loss.mean()
+    return (weights * (low_dim_sim_upper - high_dim_sim_upper).pow(2)).mean() * loss_factor
 
 
 # --- Eval functions ---

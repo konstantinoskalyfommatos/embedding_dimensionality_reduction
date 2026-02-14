@@ -1,4 +1,4 @@
-from transformers import TrainingArguments
+from transformers import TrainingArguments, EarlyStoppingCallback
 from argparse import ArgumentParser
 import torch
 import torch.nn as nn
@@ -101,13 +101,13 @@ if __name__ == "__main__":
     def hp_space(trial: optuna.Trial):
         return {
             "learning_rate": trial.suggest_float("learning_rate", 1e-5, 5e-2, log=True),
-            "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1]),
+            # "warmup_ratio": trial.suggest_categorical("warmup_ratio", [0.0, 0.1]),
             "weight_decay": trial.suggest_categorical("weight_decay", [0.0, 0.1]),
         }
 
     training_args = TrainingArguments(
         output_dir=os.path.join(STORAGE_PATH, "optuna_results"),
-        num_train_epochs=10,
+        num_train_epochs=5,
         per_device_train_batch_size=20000,
         per_device_eval_batch_size=20000,
         metric_for_best_model="eval_loss",
@@ -123,7 +123,8 @@ if __name__ == "__main__":
         greater_is_better=False,
         dataloader_drop_last=True,
         disable_tqdm=True,
-        dataloader_pin_memory=True
+        dataloader_pin_memory=True,
+        warmup_ratio=0.1,
     )
 
     trainer = SimilarityTrainer(
@@ -136,6 +137,12 @@ if __name__ == "__main__":
         positional_loss_factor=0.0,
         weight_exponent=0,
         data_collator=collate_embeddings,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=3, 
+                early_stopping_threshold=0.01
+            )
+        ],
     )
     
     # Run hyperparameter search
@@ -143,10 +150,10 @@ if __name__ == "__main__":
         hp_space=hp_space,
         direction="minimize",
         backend="optuna",
-        n_trials=20,
+        n_trials=30,
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=2),
         storage="sqlite:///optuna_study.db",
-        study_name="projection_search",
+        study_name="projection_search_2",
         load_if_exists=True,
     )
     print(trials)

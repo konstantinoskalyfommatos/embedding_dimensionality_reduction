@@ -29,10 +29,12 @@ if __name__ == "__main__":
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
     parser.add_argument("--skip_clustering", action="store_true", help="Skip clustering evaluation")
     parser.add_argument("--fast_mode", action="store_true")
+
     parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
-    parser.add_argument("--classification_batch_size", type=int, default=6, help="Batch size for classification evaluation")
-    parser.add_argument("--retrieval_batch_size", type=int, default=48, help="Batch size for retrieval evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
+    parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
+
     parser.add_argument("--normalize_vector_before_projecting", action="store_true")
 
     parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
@@ -42,7 +44,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     logger.info(f"Args: {args}")
     
-    projection_head = nn.Linear(args.backbone_model_output_dim, args.target_dim).to("cuda")
+    projection_head = nn.Linear(
+        args.backbone_model_output_dim, 
+        args.target_dim,
+        bias=False
+    ).to("cuda")
+    nn.init.normal_(projection_head.weight, mean=0, std=1)
 
     print(projection_head)
 
@@ -57,6 +64,7 @@ if __name__ == "__main__":
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         "_random_projection"
+        "_normal"
     )
 
     if args.eval_intrinsic:
@@ -71,12 +79,6 @@ if __name__ == "__main__":
         )
         logger.info(f"Intrinsic test loss: {loss}")
         sys.exit(0)
-
-    model_name = os.path.join(
-        f"{args.backbone_model}"
-        f"_distilled_{args.target_dim}"
-        "_random_projection"
-    )
 
     custom_model = DistilledSentenceTransformer(
         model_name_or_path=args.backbone_model,
