@@ -1,0 +1,55 @@
+{
+  "best_global_step": 100,
+  "best_metric": 2.136233524652198e-05,
+  "best_model_checkpoint": "/home/kotsios/dsit/thesis/thesis_project/storage/models/jinaai__jina-embeddings-v2-small-en/jinaai__jina-embeddings-v2-small-en_distilled_64_batch_20000_poslossfactor_1.0_exponent_2_no_hidden/checkpoint-100",
+  "epoch": 0.2,
+  "eval_steps": 100,
+  "global_step": 100,
+  "is_hyper_param_search": false,
+  "is_local_process_zero": true,
+  "is_world_process_zero": true,
+  "log_history": [
+    {
+      "epoch": 0.2,
+      "grad_norm": 0.14278873801231384,
+      "learning_rate": 0.00198,
+      "loss": 6.3142,
+      "step": 100
+    },
+    {
+      "epoch": 0.2,
+      "eval_loss": 2.136233524652198e-05,
+      "step": 100
+    }
+  ],
+  "logging_steps": 100,
+  "max_steps": 5000,
+  "num_input_tokens_seen": 0,
+  "num_train_epochs": 10,
+  "save_steps": 100,
+  "stateful_callbacks": {
+    "EarlyStoppingCallback": {
+      "args": {
+        "early_stopping_patience": 3,
+        "early_stopping_threshold": 0.001
+      },
+      "attributes": {
+        "early_stopping_patience_counter": 0
+      }
+    },
+    "TrainerControl": {
+      "args": {
+        "should_epoch_stop": false,
+        "should_evaluate": true,
+        "should_log": false,
+        "should_save": true,
+        "should_training_stop": false
+      },
+      "attributes": {}
+    }
+  },
+  "total_flos": 0.0,
+  "train_batch_size": 20000,
+  "trial_name": null,
+  "trial_params": null
+}
