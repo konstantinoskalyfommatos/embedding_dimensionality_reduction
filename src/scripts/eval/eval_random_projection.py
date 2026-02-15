@@ -64,7 +64,6 @@ if __name__ == "__main__":
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         "_random_projection"
-        "_normal"
     )
 
     if args.eval_intrinsic:
