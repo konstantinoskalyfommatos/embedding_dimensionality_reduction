@@ -91,17 +91,17 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     
     cols = []
     for task_category, benchmarks in TASK_BENCHMARK_MAPPING.items():
-        # Add individual benchmark columns
-        for benchmark in benchmarks:
-            if benchmark in df.columns and benchmark != "intrinsic":
-                cols.append(benchmark)
-        
         # Simple add the intrinsic score if available
         if task_category == "intrinsic":
             df["**INTRINSIC_SCORE**"] = df["intrinsic"]
             cols.append("**INTRINSIC_SCORE**")
             continue
 
+        # Add individual benchmark columns
+        for benchmark in benchmarks:
+            if benchmark in df.columns and benchmark != "intrinsic":
+                cols.append(benchmark)
+        
         # Calculate and add average column for this category
         category_benchmarks = [b for b in benchmarks if b in df.columns]
         df[f"**AVG_{task_category.upper()}**"] = df[category_benchmarks].mean(axis=1)
@@ -111,8 +111,10 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     # Calculate overall average across all tasks
     df["**AVG_OVERALL**"] = df[avg_cols].mean(axis=1)
     
-    # Reorder the dataframe columns: overall avg first, then category avgs, then the rest
-    df = df[["**AVG_OVERALL**"] + avg_cols + cols]
+    # Reorder the dataframe columns: intrinsic score first, then overall avg, then category avgs, then the rest
+    intrinsic_col = ["**INTRINSIC_SCORE**"] if "**INTRINSIC_SCORE**" in cols else []
+    other_cols = [c for c in cols if c != "**INTRINSIC_SCORE**"]
+    df = df[intrinsic_col + ["**AVG_OVERALL**"] + avg_cols + other_cols]
     df = df.sort_index()
      
     return df

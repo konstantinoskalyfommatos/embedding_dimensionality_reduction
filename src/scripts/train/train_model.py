@@ -127,7 +127,7 @@ def main():
                        help="Weight decay for optimizer")
     parser.add_argument("--warmup_ratio", type=float, default=0.1,
                        help="Warmup ratio for learning rate scheduler")
-    parser.add_argument("--weight_exponent", type=int, default=2, 
+    parser.add_argument("--weight_exponent", type=int, default=1, 
                         help="Exponent to raise inverse distances to, in the loss function")
 
     # Output configuration

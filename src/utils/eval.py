@@ -85,7 +85,7 @@ def eval_intrinsic(
     backbone_model_path: str,
     dataset_name = "sentence-paraphrases",
     positional_or_angular: str = "positional",
-    weight_exponent: int = 1,
+    weight_exponent: int = 0,
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
