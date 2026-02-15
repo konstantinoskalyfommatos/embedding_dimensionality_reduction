@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# --backbone_model Alibaba-NLP/gte-multilingual-base
+
 python src/scripts/eval/eval_truncation.py \
     --backbone_model "jinaai/jina-embeddings-v2-small-en" \
     --backbone_model_output_dim 512 \
