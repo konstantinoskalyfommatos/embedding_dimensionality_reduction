@@ -12,7 +12,7 @@ python src/scripts/eval/eval_random_projection.py \
     --clustering_batch_size 16 \
     --weight_exponent 0 \
     --positional_or_angular "angular" \
-    --eval_intrinsic
+    # --eval_intrinsic
     # --skip_sts \
     # --skip_classification \
     # --skip_retrieval \

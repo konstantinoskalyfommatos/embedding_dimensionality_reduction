@@ -15,7 +15,7 @@ python src/scripts/eval/eval_model.py \
     --clustering_batch_size 16 \
     --weight_exponent 0 \
     --positional_or_angular "angular" \
-    --custom_suffix "exponent_1_no_hidden_new_loss" \
+    --custom_suffix "" \
     # --eval_intrinsic \
     # --skip_sts \
     # --skip_classification \

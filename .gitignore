@@ -5,6 +5,7 @@ nohup.out
 storage/optuna_results/
 storage/precalculated_embeddings/
 storage/evaluation_results/
+storage/models/
 storage/plots/
 storage/available_tasks.txt
 trainer_output
