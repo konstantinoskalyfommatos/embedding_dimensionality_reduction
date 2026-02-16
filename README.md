@@ -19,11 +19,11 @@ More formally, learn a function $$f : \mathbb{R}^n \to \mathbb{R}^k,$$ with $k <
 - Define a simple Neural Network that maps these output vectors into a low dimensinal space.
 - Train the Network to preserve pairwise distances and cosine similarities for each batch. The loss function is
 
-$$\mathcal{L} = \frac{1}{N}\sum_{i<j} w_{ij} \left( d_{\text{low}}(x_i, x_j) - d_{\text{high}}(x_i, x_j) \right)^2$$
+$$\mathcal{L} = \frac{1}{N}\sum_{i<j} w_{ij} ( d_{\text{low}}(x_i, x_j) - d_{\text{high}}(x_i, x_j) )^2$$
     
 where
 
-$$w_{ij} = \frac{1}{\left(d_{\text{high}}(x_i, x_j) + \epsilon\right)^m}$$
+$$w_{ij} = \frac{1}{(d_{\text{high}}(x_i, x_j) + \epsilon)^m}$$
 
 and N is the number of unique pairs in a batch.
 
