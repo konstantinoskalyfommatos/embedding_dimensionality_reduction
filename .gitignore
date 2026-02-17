@@ -12,3 +12,4 @@ storage/available_tasks.txt
 trainer_output
 notes.md
 optuna_study.db
+scratch/
