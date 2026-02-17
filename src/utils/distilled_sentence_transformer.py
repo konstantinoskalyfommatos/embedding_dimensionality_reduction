@@ -76,12 +76,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
             self.model_card_data.model_id = self._model_name
             self.model_card_data.model_name = self._model_name
 
-        # Freeze only the backbone parameters
-        for param in self.parameters():
-            param.requires_grad = False
-        for param in self.projection_head.parameters():
-            param.requires_grad = True
-
     @property
     def projection_head(self) -> ProjectionHead:
         """A property to dynamically find and return the ProjectionHead module.
@@ -126,19 +120,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
         
         self.to(self.device)
         return self
-    
-    def change_projection_head(self, projection: nn.Module):
-        """Change the projection head with a new projection module."""
-        new_projection_head = ProjectionHead(projection, output_dim=self.output_dim)
-        
-        # Find and replace the existing projection head in the _modules dictionary
-        for module_key in self._modules.keys():
-            if isinstance(self._modules[module_key], ProjectionHead):
-                self._modules[module_key] = new_projection_head
-                self._modules[module_key].to(self.device)
-                return
-
-        raise RuntimeError("Could not find a ProjectionHead module to replace.")
 
     def get_sentence_embedding_dimension(self) -> int:
         """Return the dimension of the final embeddings."""

@@ -100,10 +100,6 @@ if __name__ == "__main__":
         custom_model_name=model_name
     )
 
-    custom_model.eval()
-
-
-
     if not args.skip_sts:
         sts_score = evaluate_sts(
             model=custom_model,

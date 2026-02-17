@@ -54,12 +54,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     logger.info(f"Args: {args}")
 
-    # projection_head = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
-    #     nn.ReLU(),
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
-    # ).to("cuda")
-
     projection_head = nn.Sequential(
         nn.Linear(args.backbone_model_output_dim, args.target_dim),
         nn.ReLU(),
