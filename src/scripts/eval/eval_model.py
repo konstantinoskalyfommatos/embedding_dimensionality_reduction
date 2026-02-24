@@ -67,7 +67,7 @@ if __name__ == "__main__":
         f"{args.backbone_model.replace("/", "__")}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"_poslossfactor_{float(args.positional_loss_factor)}"
+        # f"_poslossfactor_{float(args.positional_loss_factor)}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
 

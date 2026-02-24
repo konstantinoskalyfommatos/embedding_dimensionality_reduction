@@ -2,7 +2,7 @@ import torch
 import logging
 from transformers import Trainer
 
-from utils.eval import compute_positional_loss, compute_angular_loss
+from utils.eval import compute_positional_loss, compute_angular_loss, compute_spearman_loss
 
 
 torch.manual_seed(42)
@@ -38,26 +38,32 @@ class SimilarityTrainer(Trainer):
         angular_loss = 0.0
         positional_loss = 0.0
         
-        if self.positional_loss_factor > 0:
-            positional_loss = compute_positional_loss(
-                low_dim_embeddings=low_dim_embeddings,
-                high_dim_embeddings=high_dim_embeddings,
-                weight_exponent=self.weight_exponent
-            )
-            positional_loss.requires_grad_(True)
-
-        if self.positional_loss_factor < 1:
-            angular_loss = compute_angular_loss(
-                low_dim_embeddings=low_dim_embeddings,
-                high_dim_embeddings=high_dim_embeddings,
-                weight_exponent=self.weight_exponent
-            )
-            angular_loss.requires_grad_(True)
-        
-        return (
-            self.positional_loss_factor * positional_loss + 
-            (1 - self.positional_loss_factor) * angular_loss
+        return compute_spearman_loss(
+            low_dim_embeddings=low_dim_embeddings,
+            high_dim_embeddings=high_dim_embeddings,
+            training=True
         )
+
+        # if self.positional_loss_factor > 0:
+        #     positional_loss = compute_positional_loss(
+        #         low_dim_embeddings=low_dim_embeddings,
+        #         high_dim_embeddings=high_dim_embeddings,
+        #         weight_exponent=self.weight_exponent
+        #     )
+        #     positional_loss.requires_grad_(True)
+
+        # if self.positional_loss_factor < 1:
+        #     angular_loss = compute_angular_loss(
+        #         low_dim_embeddings=low_dim_embeddings,
+        #         high_dim_embeddings=high_dim_embeddings,
+        #         weight_exponent=self.weight_exponent
+        #     )
+        #     angular_loss.requires_grad_(True)
+
+        # return (
+        #     self.positional_loss_factor * positional_loss + 
+        #     (1 - self.positional_loss_factor) * angular_loss
+        # )
     
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
         if eval_dataset is None:
@@ -81,25 +87,31 @@ class SimilarityTrainer(Trainer):
                 high_dim_embeddings = features["input"] if isinstance(features, dict) else features
                 low_dim_embeddings = model(high_dim_embeddings)
 
-                angular_loss = 0.0
-                positional_loss = 0.0
+                # angular_loss = 0.0
+                # positional_loss = 0.0
 
-                if self.positional_loss_factor > 0:
-                    positional_loss = compute_positional_loss(
-                        low_dim_embeddings=low_dim_embeddings,
-                        high_dim_embeddings=high_dim_embeddings,
-                        weight_exponent=self.weight_exponent
-                    )
-                if self.positional_loss_factor < 1:
-                    angular_loss = compute_angular_loss(
-                        low_dim_embeddings=low_dim_embeddings,
-                        high_dim_embeddings=high_dim_embeddings,
-                        weight_exponent=self.weight_exponent
-                    )
+                # if self.positional_loss_factor > 0:
+                #     positional_loss = compute_positional_loss(
+                #         low_dim_embeddings=low_dim_embeddings,
+                #         high_dim_embeddings=high_dim_embeddings,
+                #         weight_exponent=self.weight_exponent
+                #     )
+                # if self.positional_loss_factor < 1:
+                #     angular_loss = compute_angular_loss(
+                #         low_dim_embeddings=low_dim_embeddings,
+                #         high_dim_embeddings=high_dim_embeddings,
+                #         weight_exponent=self.weight_exponent
+                #     )
                 
-                loss = (
-                    self.positional_loss_factor * positional_loss + 
-                    (1 - self.positional_loss_factor) * angular_loss
+                # loss = (
+                #     self.positional_loss_factor * positional_loss + 
+                #     (1 - self.positional_loss_factor) * angular_loss
+                # )
+
+                loss = compute_spearman_loss(
+                    low_dim_embeddings=low_dim_embeddings,
+                    high_dim_embeddings=high_dim_embeddings,
+                    training=False
                 )
 
                 total_loss += loss.item()
