@@ -44,7 +44,9 @@ def train_model(
     lr_scheduler_type: str = "linear",
     warmup_ratio: float = 0.0,
     resume_from_checkpoint: str = None,
-    weight_exponent: int = 2
+    weight_exponent: int = 2,
+    weighted_spearman: bool = False,
+    local: bool = False
 ) -> None:
 
     # Create training arguments
@@ -83,6 +85,8 @@ def train_model(
         target_dim=target_dim,
         weight_exponent=weight_exponent,
         positional_loss_factor=positional_loss_factor,
+        weighted_spearman=weighted_spearman,
+        local=local,
         optimizers=(optimizer, None),
         data_collator=collate_embeddings,
         callbacks=[
@@ -129,6 +133,9 @@ def main():
                        help="Warmup ratio for learning rate scheduler")
     parser.add_argument("--weight_exponent", type=int, default=1, 
                         help="Exponent to raise inverse distances to, in the loss function")
+    parser.add_argument("--weighted_spearman", action="store_true")
+    parser.add_argument("--local", action="store_true")
+
 
     # Output configuration
     parser.add_argument("--custom_suffix", type=str, default=None, help="Will be added to the normal model name")
@@ -199,7 +206,9 @@ def main():
             if args.resume_from_checkpoint 
             else None
         ),
-        weight_exponent=args.weight_exponent
+        weight_exponent=args.weight_exponent,
+        weighted_spearman=args.weighted_spearman,
+        local=args.local
     )
 
 

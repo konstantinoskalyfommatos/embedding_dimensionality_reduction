@@ -32,6 +32,9 @@ if __name__ == "__main__":
     parser.add_argument("--train_batch_size", type=int, help="Batch size used for training", default=20000)
     parser.add_argument("--normalize_vector_before_projecting", action="store_true")
 
+    parser.add_argument("--weighted_spearman", action="store_true")
+    parser.add_argument("--local", action="store_true")
+
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
@@ -106,7 +109,9 @@ if __name__ == "__main__":
                 checkpoint=checkpoint.split("checkpoint-")[-1],
                 weight_exponent=args.weight_exponent,
                 cache_path=cache_path,
-                model_name=model_name
+                model_name=model_name,
+                weighted=args.weighted,
+                local=args.local
             )
             if loss < best_loss:
                 best_loss = loss

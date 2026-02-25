@@ -83,77 +83,111 @@ def compute_angular_loss(
 
 
 # --- Spearman's rank ---
-def spearmanr_differentiable(
+def spearmanr_differentiable_local(
     pred: torch.Tensor, 
-    target: torch.Tensor, 
+    target: torch.Tensor,
+    weighted: bool = False,
     **kw
 ) -> torch.Tensor:
     """Differentiable Spearman correlation weighted by target rank position."""
     n = pred.shape[0]
+    m = n - 1
     
     # Exclude diagonal
     mask = ~torch.eye(n, dtype=torch.bool, device=pred.device)
-    pred_offdiag = pred[mask].reshape(n, n-1)
-    target_offdiag = target[mask].reshape(n, n-1)
+    pred_offdiag = pred[mask].reshape(n, m)
+    target_offdiag = target[mask].reshape(n, m)
     
-    # Get ranks of target similarities
-    target_ranks = torchsort.soft_rank(target_offdiag, **kw)
+    # Get soft ranks of target similarities (continuous approximations)
+    target_soft_ranks = torchsort.soft_rank(target_offdiag, **kw)
     
-    # NOTE: We are using rank position as weights
-    
-    # Get ranks of predictions (regular ascending order)
+    if weighted:
+        # Convert to actual rank positions by sorting the soft ranks
+        # This gives us 1,2,3,... based on the order of soft ranks
+        indices = target_soft_ranks.argsort(dim=1)
+        weights = torch.arange(1, m+1, device=pred.device).float().expand(n, -1)
+        weights = torch.gather(weights, 1, indices.argsort(dim=1))
+    else:
+        weights = torch.ones_like(target_soft_ranks)
+
+    # Get ranks of predictions
     pred_ranks = torchsort.soft_rank(pred_offdiag, **kw)
     
     # Weighted mean centering
-    w_sum = target_ranks.sum(dim=1, keepdim=True)
-    pred_mean = (target_ranks * pred_ranks).sum(dim=1, keepdim=True) / w_sum
-    target_mean = (target_ranks * target_ranks).sum(dim=1, keepdim=True) / w_sum
+    w_sum = weights.sum(dim=1, keepdim=True)
+    pred_mean = (weights * pred_ranks).sum(dim=1, keepdim=True) / w_sum
+    target_mean = (weights * target_soft_ranks).sum(dim=1, keepdim=True) / w_sum
     
     pred_centered = pred_ranks - pred_mean
-    target_centered = target_ranks - target_mean
+    target_centered = target_soft_ranks - target_mean
     
     # Weighted covariance and variances
-    cov = (target_ranks * pred_centered * target_centered).sum(dim=1)
-    pred_var = (target_ranks * pred_centered ** 2).sum(dim=1)
-    target_var = (target_ranks * target_centered ** 2).sum(dim=1)
+    cov = (weights * pred_centered * target_centered).sum(dim=1)
+    pred_var = (weights * pred_centered ** 2).sum(dim=1)
+    target_var = (weights * target_centered ** 2).sum(dim=1)
     
-    row_correlations = cov / (torch.sqrt(pred_var * target_var))
+    eps = 1e-8
+    row_correlations = cov / (torch.sqrt(pred_var * target_var) + eps)
     
     return row_correlations.mean()
 
 
-def evaluation_step(engine, batch):
-    return batch
+def spearmanr_differentiable(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    weighted: bool = False,
+    **kw
+):
+    n = target.size(0)
+    triu_indices = torch.triu_indices(n, n, offset=1, device=target.device)
+    pred = pred[triu_indices[0], triu_indices[1]]
+    target = target[triu_indices[0], triu_indices[1]]
+    pred = pred.unsqueeze(0)
+    target = target.unsqueeze(0)
 
-def spearmanr_non_differentiable(pred: torch.Tensor, target: torch.Tensor) -> float:
-    """Compute average Spearman correlation across rows of similarity matrices.
+    pred_ranks = torchsort.soft_rank(pred, **kw)
+    target_ranks = torchsort.soft_rank(target, **kw)
     
-    Args:
-        pred: 2D tensor of shape (n, n) - predicted similarity matrix
-        target: 2D tensor of shape (n, n) - target similarity matrix
-    
-    Returns:
-        Average Spearman correlation across all rows
-    """
-    n = pred.size(0)
-    correlations = []
-    
-    default_evaluator = Engine(evaluation_step)
-    metric = SpearmanRankCorrelation(device="cuda")
-    
-    for i in range(n):
-        metric.reset()
-        metric.attach(default_evaluator, 'spearman_corr')
-        corr = default_evaluator.run([[pred[i], target[i]]]).metrics["spearman_corr"]
-        correlations.append(corr)
-    
-    return sum(correlations) / len(correlations)
+    if weighted:
+        # Weight by target rank position (higher ranks get more weight)
+        m = target_ranks.size(1)
+        target_soft_ranks = target_ranks.clone()
+        
+        # Convert to actual rank positions by sorting the soft ranks
+        indices = target_soft_ranks.argsort(dim=1)
+        weights = torch.arange(1, m+1, device=pred.device).float().unsqueeze(0)
+        weights = torch.gather(weights, 1, indices.argsort(dim=1))
+        
+        # Weighted mean centering
+        w_sum = weights.sum(dim=1, keepdim=True)
+        pred_mean = (weights * pred_ranks).sum(dim=1, keepdim=True) / w_sum
+        target_mean = (weights * target_ranks).sum(dim=1, keepdim=True) / w_sum
+        
+        pred_centered = pred_ranks - pred_mean
+        target_centered = target_ranks - target_mean
+        
+        # Weighted covariance and variances
+        cov = (weights * pred_centered * target_centered).sum(dim=1)
+        pred_var = (weights * pred_centered ** 2).sum(dim=1)
+        target_var = (weights * target_centered ** 2).sum(dim=1)
+        
+        eps = 1e-8
+        correlation = cov / (torch.sqrt(pred_var * target_var) + eps)
+        return correlation.mean()
+    else:
+        pred_ranks = pred_ranks - pred_ranks.mean()
+        pred_ranks = pred_ranks / pred_ranks.norm()
+        target_ranks = target_ranks - target_ranks.mean()
+        target_ranks = target_ranks / target_ranks.norm()
+        return (pred_ranks * target_ranks).sum()
 
 
 def compute_spearman_loss(
     low_dim_embeddings: torch.Tensor,
     high_dim_embeddings: torch.Tensor,
-    training: bool = False
+    training: bool = False,
+    weighted: bool = False,
+    local: bool = False
 ) -> torch.Tensor | float:
     """Compute Spearman correlation loss between low and high dimensional embeddings."""
     # Normalize embeddings
@@ -164,18 +198,16 @@ def compute_spearman_loss(
     low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
     high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
 
-    n = low_dim_embeddings.size(0)
-
     if training:
-        # Use differentiable torchsort during training (slower but supports backprop)
-        # triu_indices = torch.triu_indices(n, n, offset=1, device=low_dim_embeddings.device)
-        # low_flat = low_dim_sim[triu_indices[0], triu_indices[1]]
-        # high_flat = high_dim_sim[triu_indices[0], triu_indices[1]]
-        # low_flat = low_flat.unsqueeze(0)
-        # high_flat = high_flat.unsqueeze(0)
-        return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim)
+        if local:
+            return 1 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted)
+        else:
+            return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim, weighted=weighted)
     with torch.no_grad():
-        return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim)
+        if local:
+            return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim)
+        else:
+            return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim, weighted=weighted)
 
 
 # --- Eval functions ---
@@ -190,6 +222,8 @@ def eval_intrinsic(
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
+    weighted: bool = False,
+    local: bool = False
 ):
     test_embeddings_path = os.path.join(
         PROJECT_ROOT,
@@ -205,12 +239,18 @@ def eval_intrinsic(
             f"Precalculated embeddings not found at {test_embeddings_path}"
         )
     high_dim_embeddings: torch.Tensor = torch.load(test_embeddings_path).to("cuda")
-    high_dim_embeddings = high_dim_embeddings[:15000]
+    high_dim_embeddings = high_dim_embeddings[:1000]
 
     with torch.inference_mode():
         low_dim_embeddings = projection(high_dim_embeddings)
 
-        return compute_spearman_loss(low_dim_embeddings, high_dim_embeddings, training=False)
+        return compute_spearman_loss(
+            low_dim_embeddings, 
+            high_dim_embeddings, 
+            training=False,
+            weighted=weighted,
+            local=local
+        )
     # if positional_or_angular == "angular":
     #     loss = compute_angular_loss(
     #         low_dim_embeddings=low_dim_embeddings,
