@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 weight_exponent=args.weight_exponent,
                 cache_path=cache_path,
                 model_name=model_name,
-                weighted=args.weighted,
+                weighted=args.weighted_spearman,
                 local=args.local,
                 test_batch_size=args.test_batch_size,
             )
