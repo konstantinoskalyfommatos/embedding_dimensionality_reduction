@@ -34,6 +34,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--weighted_spearman", action="store_true")
     parser.add_argument("--local", action="store_true")
+    parser.add_argument("--test_batch_size", default=None, type=int)
 
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
@@ -111,7 +112,8 @@ if __name__ == "__main__":
                 cache_path=cache_path,
                 model_name=model_name,
                 weighted=args.weighted,
-                local=args.local
+                local=args.local,
+                test_batch_size=args.test_batch_size,
             )
             if loss < best_loss:
                 best_loss = loss

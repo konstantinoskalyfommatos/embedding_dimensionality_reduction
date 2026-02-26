@@ -223,7 +223,8 @@ def eval_intrinsic(
     cache_path: str | None = None,
     model_name: str | None = None,
     weighted: bool = False,
-    local: bool = False
+    local: bool = False,
+    test_batch_size: int | None = None
 ):
     test_embeddings_path = os.path.join(
         PROJECT_ROOT,
@@ -239,7 +240,8 @@ def eval_intrinsic(
             f"Precalculated embeddings not found at {test_embeddings_path}"
         )
     high_dim_embeddings: torch.Tensor = torch.load(test_embeddings_path).to("cuda")
-    high_dim_embeddings = high_dim_embeddings[:1000]
+    if test_batch_size:
+        high_dim_embeddings = high_dim_embeddings[:test_batch_size]
 
     with torch.inference_mode():
         low_dim_embeddings = projection(high_dim_embeddings)
