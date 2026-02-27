@@ -50,7 +50,6 @@ if __name__ == "__main__":
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
     
     parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
-    parser.add_argument("--skip_checkpoints", type=int, help="Skip checkpoints up to this when evaluating intrinsic", action="store_true")
     parser.add_argument("--weight_exponent", type=int, default=0, help="Exponent to raise inverse distances to, in the loss function for intrinsic evaluation")
     parser.add_argument("--positional_or_angular", type=str, default="angular", help="Whether to use positional or angular loss for intrinsic evaluation")
     
@@ -90,8 +89,6 @@ if __name__ == "__main__":
             os.listdir(trained_path),
             key=lambda x: int(x.split("checkpoint-")[-1])
         )
-        if args.skip_checkpoints:
-            sorted_checkpoints = sorted_checkpoints[args.skip_checkpoints:]
 
         best_checkpoint = sorted_checkpoints[0]
         best_loss = float('inf')
