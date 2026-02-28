@@ -161,7 +161,7 @@ def eval_intrinsic(
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
-    test_batch_size: int | None = 5000
+    spearman_test_batch_size: int | None = 5000
 ):
     results = {
         "task_name": "IntrinsicEvaluation",
@@ -192,8 +192,8 @@ def eval_intrinsic(
     low_dim_embeddings = projection(high_dim_embeddings)
 
     spearman_loss = compute_spearman_loss(
-        low_dim_embeddings[:test_batch_size], 
-        high_dim_embeddings[:test_batch_size], 
+        low_dim_embeddings[:spearman_test_batch_size], 
+        high_dim_embeddings[:spearman_test_batch_size], 
         training=False,
         weighted=False,
     )
