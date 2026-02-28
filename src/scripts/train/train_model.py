@@ -9,6 +9,7 @@ import os
 import argparse
 import logging
 from typing import Any
+import time
 
 import torch.nn as nn
 import torch
@@ -16,9 +17,12 @@ from torch.utils.data import Dataset
 
 from transformers import TrainingArguments, EarlyStoppingCallback
 
+from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.train import SimilarityTrainer, collate_embeddings
 from utils.custom_datasets import get_precalculated_embeddings_dataset
-from utils.config import TRAINED_MODELS_PATH
+from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
+from utils.eval import evaluate_mteb, eval_intrinsic
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -30,11 +34,14 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def train_model(
     trainable_projection: nn.Module,
+    custom_model_name: str,
     target_dim: int,
     train_dataset: Dataset,
     val_dataset: Dataset,
     train_batch_size: int,
     val_batch_size: int,
+    backbone_model: str,
+    spearman: bool,
     epochs: int = 10,
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
     optimizer_params: dict[str, Any] = {'lr': 1e-2},
@@ -44,10 +51,14 @@ def train_model(
     lr_scheduler_type: str = "linear",
     warmup_ratio: float = 0.0,
     resume_from_checkpoint: str = None,
-    weight_exponent: int = 2,
-    weighted_spearman: bool = False,
-    local: bool = False
+    weighted_loss: bool = False,
+    eval_after_training: bool = False,
+    sts_batch_size: int = 4096,
+    retrieval_batch_size: int = 6,
+    classification_batch_size: int = 20,
+    clustering_batch_size: int = 16,
 ) -> None:
+    before = time.perf_counter()
 
     # Create training arguments
     args = TrainingArguments(
@@ -64,7 +75,7 @@ def train_model(
         save_strategy="steps",
         save_steps=100,
         save_total_limit=None,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         dataloader_drop_last=True,
         disable_tqdm=False,
@@ -83,10 +94,9 @@ def train_model(
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         target_dim=target_dim,
-        weight_exponent=weight_exponent,
+        spearman=spearman,
         positional_loss_factor=positional_loss_factor,
-        weighted_spearman=weighted_spearman,
-        local=local,
+        weighted_loss=weighted_loss,
         optimizers=(optimizer, None),
         data_collator=collate_embeddings,
         callbacks=[
@@ -98,6 +108,71 @@ def train_model(
     )
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
+    logger.info(f"Training completed in {(time.perf_counter() - before) / 3600:.2f} hours")
+
+    # Save best model at the end of training
+    torch.save(
+        trainable_projection.state_dict(), 
+        os.path.join(output_path, "best_model.pt")
+    )
+
+    if not eval_after_training:
+        logger.info("Evaluation after training is disabled. Exiting.")
+        return
+    
+    # --- Evaluate using best checkpoint ---
+    # Extract best checkpoint number
+    best_checkpoint_path = trainer.state.best_model_checkpoint
+    best_checkpoint_num = int(best_checkpoint_path.split("-")[-1])
+    logger.info(f"Best checkpoint: {best_checkpoint_num}")
+    
+    cache_path = os.path.join(
+        EVALUATION_RESULTS_PATH,
+        "trained_models",
+        backbone_model.replace("/", "__"),
+    )
+
+    # Intrinsic
+    logger.info("Evaluating intrinsic metrics on test set")
+
+    eval_intrinsic(
+        projection=trainable_projection,
+        backbone_model_path=backbone_model,
+        checkpoint=best_checkpoint_num,
+        cache_path=cache_path,
+        model_name=custom_model_name,
+        spearman_test_batch_size=val_batch_size
+    )
+
+    # MTEB
+    logger.info("Evaluating on MTEB benchmark")
+
+    sentence_transformer = DistilledSentenceTransformer(
+        model_name_or_path=backbone_model,
+        projection=trainable_projection,
+        output_dim=target_dim,
+        custom_model_name=custom_model_name,
+    )
+    sentence_transformer.eval()
+
+    evaluate_mteb(
+        model=sentence_transformer,
+        cache_path=cache_path,
+        sts_batch_size=sts_batch_size,
+        retrieval_batch_size=retrieval_batch_size,
+        classification_batch_size=classification_batch_size,
+        clustering_batch_size=clustering_batch_size,
+        skip_sts=False,
+        skip_retrieval=False,
+        skip_classification=False,
+        skip_clustering=False,
+        overwrite_cache=True,
+    )
+
+    logger.info(
+        f"Training + evaluation completed in "
+        f"{(time.perf_counter() - before) / 3600:.2f} hours"
+    )
 
 # NOTE: Models: 
 # - Alibaba-NLP/gte-multilingual-base
@@ -120,7 +195,7 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
     parser.add_argument("--positional_loss_factor", type=float, default=1,
-                       help="Weight for positional vs similarity loss")
+                       help="factor for positional vs similarity loss")
     parser.add_argument("--train_batch_size", type=int, default=20000,
                        help="Batch size for training")
     parser.add_argument("--val_batch_size", type=int, default=20000,
@@ -131,11 +206,15 @@ def main():
                        help="Weight decay for optimizer")
     parser.add_argument("--warmup_ratio", type=float, default=0.1,
                        help="Warmup ratio for learning rate scheduler")
-    parser.add_argument("--weight_exponent", type=int, default=1, 
-                        help="Exponent to raise inverse distances to, in the loss function")
-    parser.add_argument("--weighted_spearman", action="store_true")
-    parser.add_argument("--local", action="store_true")
+    parser.add_argument("--weighted_loss", action="store_true")
+    parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
 
+    parser.add_argument("--skip_eval_after_training", action="store_true", help="Whether to evaluate the model after training")
+
+    parser.add_argument("--sts_batch_size", type=int, default=3000, help="Batch size for STS evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=8, help="Batch size for retrieval evaluation")
+    parser.add_argument("--classification_batch_size", type=int, default=30, help="Batch size for classification evaluation")
+    parser.add_argument("--clustering_batch_size", type=int, default=24, help="Batch size for clustering evaluation")
 
     # Output configuration
     parser.add_argument("--custom_suffix", type=str, default=None, help="Will be added to the normal model name")
@@ -144,14 +223,18 @@ def main():
     args = parser.parse_args()
         
     model_name = (
-        f"{args.backbone_model.replace("/", "__")}"
+        f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        # f"_poslossfactor_{float(args.positional_loss_factor)}"
-        f"{'_'+args.custom_suffix if args.custom_suffix else ''}"
+        f"{'_poslossfactor_' + str(args.positional_loss_factor) if args.spearman else ''}"
+        f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
     
-    output_path = os.path.join(TRAINED_MODELS_PATH, args.backbone_model.replace("/", "__"), model_name)
+    output_path = os.path.join(
+        TRAINED_MODELS_PATH, 
+        args.backbone_model.replace("/", "__"), 
+        model_name.replace("/", "__")
+    )
     os.makedirs(output_path, exist_ok=True)
     
     logger.info(f"Backbone model: {args.backbone_model}")
@@ -188,11 +271,14 @@ def main():
     logger.info("Starting training")
     train_model(
         trainable_projection=trainable_projection,
+        custom_model_name=model_name,
         target_dim=args.target_dim,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         train_batch_size=args.train_batch_size,
         val_batch_size=args.val_batch_size,
+        backbone_model=args.backbone_model,
+        spearman=args.spearman,
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,
         weight_decay=args.weight_decay,
@@ -206,9 +292,12 @@ def main():
             if args.resume_from_checkpoint 
             else None
         ),
-        weight_exponent=args.weight_exponent,
-        weighted_spearman=args.weighted_spearman,
-        local=args.local
+        weighted_loss=args.weighted_loss,
+        eval_after_training=not args.skip_eval_after_training,
+        sts_batch_size=args.sts_batch_size,
+        retrieval_batch_size=args.retrieval_batch_size,
+        classification_batch_size=args.classification_batch_size,
+        clustering_batch_size=args.clustering_batch_size,
     )
 
 

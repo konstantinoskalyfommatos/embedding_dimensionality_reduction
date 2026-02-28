@@ -14,20 +14,15 @@ class ProjectionHead(nn.Module):
         self, 
         projection: nn.Module,
         output_dim: int,
-        normalize_vector_before_projecting: bool = False,
     ):
         super().__init__()
         self.projection = projection
         self.output_dim = output_dim
-        self.normalize_vector_before_projecting = normalize_vector_before_projecting
     
     def forward(self, features: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:        
         """Projects into lower dimensionality space"""
-        vector = features['sentence_embedding']
-        if self.normalize_vector_before_projecting:
-            vector = nn.functional.normalize(vector, dim=0)
         features.update({
-            'sentence_embedding': self.projection(vector)
+            'sentence_embedding': features['sentence_embedding']
         })
         return features
 
@@ -47,7 +42,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
         device: str = "cuda",
         custom_model_name: str | None = None,
         max_seq_length: int = 512,
-        normalize_vector_before_projecting: bool = False,
         **kwargs
     ):
         base_model = SentenceTransformer(
@@ -61,7 +55,6 @@ class DistilledSentenceTransformer(SentenceTransformer):
         projection_head = ProjectionHead(
             projection, 
             output_dim=output_dim, 
-            normalize_vector_before_projecting=normalize_vector_before_projecting
         )  
         modules = list(base_model._modules.values()) + [projection_head]
         super().__init__(modules=modules, device=device)

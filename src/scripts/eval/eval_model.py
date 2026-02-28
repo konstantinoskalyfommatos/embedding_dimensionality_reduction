@@ -9,8 +9,7 @@ from safetensors.torch import load_file
 from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.eval import (
-    evaluate_sts, evaluate_retrieval, 
-    evaluate_classification, evaluate_clustering,
+    evaluate_mteb,
     eval_intrinsic
 )
 
@@ -145,42 +144,17 @@ if __name__ == "__main__":
     )
     custom_model.eval()
 
-    if not args.skip_sts:
-        sts_score = evaluate_sts(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.sts_batch_size,
-            overwrite_cache=args.overwrite_cache
-        )
-        logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
-
-    if not args.skip_retrieval:
-        retrieval_score = evaluate_retrieval(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.retrieval_batch_size,
-            overwrite_cache=args.overwrite_cache
-        )
-        logger.info(f"Final retrieval results: {retrieval_score}")
-
-    if not args.skip_classification:
-        classification_score = evaluate_classification(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.classification_batch_size,
-            overwrite_cache=args.overwrite_cache
-        )
-        logger.info(f"Final classification results: {classification_score}")
-
-    if not args.skip_clustering:
-        clustering_score = evaluate_clustering(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.clustering_batch_size,
-            overwrite_cache=args.overwrite_cache
-        )
-        logger.info(f"Final clustering results: {clustering_score}")
+    evaluate_mteb(
+        model=custom_model,
+        cache_path=cache_path,
+        sts_batch_size=args.sts_batch_size,
+        retrieval_batch_size=args.retrieval_batch_size,
+        classification_batch_size=args.classification_batch_size,
+        clustering_batch_size=args.clustering_batch_size,
+        skip_sts=args.skip_sts,
+        skip_retrieval=args.skip_retrieval,
+        skip_classification=args.skip_classification,
+        skip_clustering=args.skip_clustering,
+        fast_mode=args.fast_mode,
+        overwrite_cache=args.overwrite_cache,
+    )
