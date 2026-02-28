@@ -43,7 +43,6 @@ class SimilarityTrainer(Trainer):
                 high_dim_embeddings=high_dim_embeddings,
                 training=True,
                 weighted=self.weighted_loss,
-                local=self.local
             )
         
         angular_loss = 0.0
