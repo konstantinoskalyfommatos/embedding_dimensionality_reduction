@@ -42,7 +42,7 @@ class SimilarityTrainer(Trainer):
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings,
                 training=True,
-                weighted=self.weighted_spearman,
+                weighted=self.weighted_loss,
                 local=self.local
             )
         
