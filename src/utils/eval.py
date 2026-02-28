@@ -200,8 +200,8 @@ def eval_intrinsic(
     results["spearman_loss"] = spearman_loss.item()
 
     spearman_loss_weighted = compute_spearman_loss(
-        low_dim_embeddings[:test_batch_size], 
-        high_dim_embeddings[:test_batch_size], 
+        low_dim_embeddings[:spearman_test_batch_size], 
+        high_dim_embeddings[:spearman_test_batch_size], 
         training=False,
         weighted=True,
     )

@@ -141,7 +141,7 @@ def train_model(
         checkpoint=best_checkpoint_num,
         cache_path=cache_path,
         model_name=custom_model_name,
-        spearman_test_batch_size=val_batch_size
+        spearman_test_batch_size=5000
     )
 
     # MTEB
@@ -226,7 +226,7 @@ def main():
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"{'_poslossfactor_' + str(args.positional_loss_factor) if args.spearman else ''}"
+        f"{'_poslossfactor_' + str(args.positional_loss_factor) if not args.spearman else ''}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
     
