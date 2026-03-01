@@ -4,8 +4,17 @@ import pandas as pd
 from argparse import ArgumentParser
 
 
+INTRINSIC_METRICS = [
+    "spearman_loss",
+    "spearman_loss_weighted",
+    "angular_loss",
+    "angular_loss_weighted",
+    "positional_loss",
+    "positional_loss_weighted",
+]
+
 TASK_BENCHMARK_MAPPING = {
-    "intrinsic": ["intrinsic"],
+    "intrinsic": INTRINSIC_METRICS,
     "sts": [
         "STS12",
         "STS13",
@@ -42,10 +51,6 @@ TASK_BENCHMARK_MAPPING = {
 def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     """Collect all evaluation results and create a comparison CSV."""
     
-    if not os.path.exists(results_dir):
-        print(f"Results directory not found: {results_dir}")
-        return
-    
     # Dictionary to store all results: {model_name: {task_name: score}}
     all_results = {}
     
@@ -72,34 +77,41 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
                         continue
                     
                     task_name = os.path.splitext(result_file)[0]
+
+                    with open(os.path.join(model_root, result_file), 'r') as f:
+                        results = json.load(f)
+
+                    if task_name == "intrinsic":
+                        for metric in INTRINSIC_METRICS:
+                            if metric not in all_results[model_name]:
+                                all_results[model_name][metric] = results.get(metric)
+                        continue
                     
                     # Only store if not already present (avoid duplicates)
                     if task_name in all_results[model_name]:
                         continue
+                    test_scores = [subset['main_score'] for subset in results['scores']['test']]
+                    all_results[model_name][task_name] = sum(test_scores) / len(test_scores)
 
-                    with open(os.path.join(model_root, result_file), 'r') as f:
-                        results = json.load(f)
-                        test_scores = [subset['main_score'] for subset in results['scores']['test']]
-                        all_results[model_name][task_name] = sum(test_scores) / len(test_scores)
-    
-    if not all_results:
-        print("No results found to compile.")
-        return
-    
     df = pd.DataFrame.from_dict(all_results, orient='index')
     df.index.name = 'Model'
     
+    intrinsic_rename = {metric: f"**{metric.upper()}**" for metric in INTRINSIC_METRICS if metric in df.columns}
+    df = df.rename(columns=intrinsic_rename)
+    
     cols = []
     for task_category, benchmarks in TASK_BENCHMARK_MAPPING.items():
-        # Simple add the intrinsic score if available
+        # Add individual intrinsic metric columns
         if task_category == "intrinsic":
-            df["**INTRINSIC_SCORE**"] = df["intrinsic"]
-            cols.append("**INTRINSIC_SCORE**")
+            for metric in INTRINSIC_METRICS:
+                metric_col = f"**{metric.upper()}**"
+                if metric_col in df.columns:
+                    cols.append(metric_col)
             continue
 
         # Add individual benchmark columns
         for benchmark in benchmarks:
-            if benchmark in df.columns and benchmark != "intrinsic":
+            if benchmark in df.columns:
                 cols.append(benchmark)
         
         # Calculate and add average column for this category
@@ -111,10 +123,10 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     # Calculate overall average across all tasks
     df["**AVG_OVERALL**"] = df[avg_cols].mean(axis=1)
     
-    # Reorder the dataframe columns: intrinsic score first, then overall avg, then category avgs, then the rest
-    intrinsic_col = ["**INTRINSIC_SCORE**"] if "**INTRINSIC_SCORE**" in cols else []
-    other_cols = [c for c in cols if c != "**INTRINSIC_SCORE**"]
-    df = df[intrinsic_col + ["**AVG_OVERALL**"] + avg_cols + other_cols]
+    # Reorder the dataframe columns: intrinsic metrics first, then overall avg, then category avgs, then the rest
+    intrinsic_cols = [f"**{m.upper()}**" for m in INTRINSIC_METRICS if f"**{m.upper()}**" in cols]
+    other_cols = [c for c in cols if c not in intrinsic_cols]
+    df = df[intrinsic_cols + ["**AVG_OVERALL**"] + avg_cols + other_cols]
     df = df.sort_index()
      
     return df
@@ -135,6 +147,7 @@ if __name__ == "__main__":
     )
 
     output_path = os.path.join(args.results_base_path, "comparison_results.csv")
+    df = df.round(4)
     df.to_csv(output_path)
     
     print(f"Results saved to: {output_path}")

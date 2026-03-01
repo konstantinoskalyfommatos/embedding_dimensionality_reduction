@@ -7,7 +7,7 @@ import sys
 
 from utils.config import EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
-from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering, eval_intrinsic
+from utils.eval import eval_intrinsic, evaluate_mteb
 
 
 # Set random seed for reproducibility
@@ -32,10 +32,11 @@ if __name__ == "__main__":
     parser.add_argument("--classification_batch_size", type=int, default=6, help="Batch size for classification evaluation")
     parser.add_argument("--retrieval_batch_size", type=int, default=20, help="Batch size for retrieval evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
-    
-    parser.add_argument("--eval_intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
-    parser.add_argument("--weight_exponent", type=int, default=0, help="Exponent to raise inverse distances to, in the loss function for intrinsic evaluation")
-    parser.add_argument("--positional_or_angular", type=str, default="angular", help="Whether to use positional or angular loss for intrinsic evaluation")
+
+    parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
+    parser.add_argument("--spearman_test_batch_size", type=int, default=5000, help="Batch size for intrinsic Spearman evaluation")
+
+    parser.add_argument("--intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
 
     args = parser.parse_args()
     logger.info(f"Args: {args}")
@@ -66,20 +67,20 @@ if __name__ == "__main__":
         "_truncation"
     )
 
-    if args.eval_intrinsic:
+    if args.intrinsic:
+        logger.info("Evaluating truncation on intrinsic test set")
         projection_head.eval()
-        loss = eval_intrinsic(
+        eval_intrinsic(
             projection=projection_head,
             backbone_model_path=args.backbone_model,
-            positional_or_angular=args.positional_or_angular,
-            weight_exponent=args.weight_exponent,
+            checkpoint=None,
             cache_path=cache_path,
-            model_name=model_name
+            model_name=model_name,
+            spearman_test_batch_size=args.spearman_test_batch_size
         )
-        logger.info(f"Intrinsic test loss: {loss}")
         sys.exit(0)
 
-
+    logger.info("Evaluating truncation on MTEB benchmark")
     custom_model = DistilledSentenceTransformer(
         model_name_or_path=args.backbone_model,
         projection=projection_head,
@@ -87,41 +88,19 @@ if __name__ == "__main__":
         custom_model_name=model_name
     )
 
-    custom_model.eval()
-
-    if not args.skip_sts:
-        sts_score = evaluate_sts(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.sts_batch_size
-        )
-        logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
-
-    if not args.skip_retrieval:
-        retrieval_score = evaluate_retrieval(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.retrieval_batch_size
-        )
-        logger.info(f"Final retrieval results: {retrieval_score}")
-
-    if not args.skip_clustering:
-        clustering_score = evaluate_clustering(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.clustering_batch_size
-        )
-        logger.info(f"Final clustering results: {clustering_score}")
-
-    if not args.skip_classification:
-        classification_score = evaluate_classification(
-            model=custom_model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.classification_batch_size
-        )
-        logger.info(f"Final classification results: {classification_score}")
+    evaluate_mteb(
+        model=custom_model,
+        cache_path=cache_path,
+        model_name=model_name,
+        sts_batch_size=args.sts_batch_size,
+        classification_batch_size=args.classification_batch_size,
+        retrieval_batch_size=args.retrieval_batch_size,
+        clustering_batch_size=args.clustering_batch_size,
+        skip_sts=args.skip_sts,
+        skip_classification=args.skip_classification,
+        skip_retrieval=args.skip_retrieval,
+        skip_clustering=args.skip_clustering,
+        fast_mode=args.fast_mode,
+        overwrite_cache=args.overwrite_cache,
+    )
         

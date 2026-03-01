@@ -13,13 +13,12 @@ python src/scripts/eval/eval_model.py \
     --retrieval_batch_size 6 \
     --classification_batch_size 20 \
     --clustering_batch_size 16 \
-    --weight_exponent 0 \
-    --positional_or_angular "angular" \
+    --spearman_test_batch_size 5000 \
     --custom_suffix "" \
-    # --eval_intrinsic \
+    # --intrinsic \
     # --skip_sts \
     # --skip_classification \
     # --skip_retrieval \
     # --skip_clustering \
-    # --overwrite_cache
+    # --overwrite_cache \
     # --fast_mode

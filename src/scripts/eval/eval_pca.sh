@@ -10,12 +10,12 @@ python src/scripts/eval/eval_pca.py \
     --classification_batch_size 6 \
     --retrieval_batch_size 20 \
     --clustering_batch_size 16 \
-    --weight_exponent 0 \
-    --positional_or_angular "angular" \
-    # --eval_intrinsic
+    --spearman_test_batch_size 5000 \
+    # --intrinsic \
     # --skip_sts \
     # --skip_classification \
     # --skip_retrieval \
     # --skip_clustering \
-    # --fast_mode \
+    # --overwrite_cache \
+    # --fast_mode
 

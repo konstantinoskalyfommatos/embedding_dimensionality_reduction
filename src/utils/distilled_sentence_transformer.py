@@ -22,7 +22,7 @@ class ProjectionHead(nn.Module):
     def forward(self, features: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:        
         """Projects into lower dimensionality space"""
         features.update({
-            'sentence_embedding': features['sentence_embedding']
+            'sentence_embedding': self.projection(features['sentence_embedding'])
         })
         return features
 

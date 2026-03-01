@@ -31,6 +31,8 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
     parser.add_argument("--fast_mode", action="store_true")
 
+    parser.add_argument("--intrinsic", action="store_true", help="Intrinsic only")
+
     parser.add_argument("--sts_batch_size", type=int, default=2048, help="Batch size for STS evaluation")
     parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
@@ -73,16 +75,17 @@ if __name__ == "__main__":
     projection_head.load_state_dict(torch.load(best_model_path, map_location="cuda"))
     projection_head.eval()
 
-    # Intrinsic evaluation
-    logger.info("Evaluating intrinsic metrics on test set")
-    eval_intrinsic(
-        projection=projection_head,
-        backbone_model_path=args.backbone_model,
-        cache_path=cache_path,
-        model_name=model_name,
-        spearman_test_batch_size=args.spearman_test_batch_size,
-    )
-    torch.cuda.empty_cache()
+    if args.intrinsic:
+        # Intrinsic evaluation
+        logger.info("Evaluating intrinsic metrics on test set")
+        eval_intrinsic(
+            projection=projection_head,
+            backbone_model_path=args.backbone_model,
+            cache_path=cache_path,
+            model_name=model_name,
+            spearman_test_batch_size=args.spearman_test_batch_size,
+        )
+        exit()
 
     # MTEB evaluation
     logger.info("Evaluating on MTEB benchmark")
