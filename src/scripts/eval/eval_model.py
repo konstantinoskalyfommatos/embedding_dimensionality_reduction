@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import os
 import logging
+import json
 
 from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
@@ -14,6 +15,35 @@ torch.manual_seed(42)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def find_checkpoint_lowest_val_loss(trained_path: str) -> tuple[float, int]:
+    """Find the checkpoint with the lowest validation loss."""
+    last_checkpoint = max([
+        int(d.split("checkpoint-")[-1])
+        for d in os.listdir(trained_path)
+        if d.startswith("checkpoint-")
+    ])
+
+    with open(
+        os.path.join(
+            trained_path, 
+            f"checkpoint-{last_checkpoint}", 
+            "trainer_state.json"
+        )
+    ) as f:
+        trainer_state = json.load(f)
+    
+    lowest_val = 100000
+    best_checkpoint = None
+    for info_dict in trainer_state["log_history"]:
+        if not "eval_loss" in info_dict:
+            continue
+        if info_dict["eval_loss"] < lowest_val:
+            lowest_val = info_dict["eval_loss"]
+            best_checkpoint = info_dict["step"]
+
+    return lowest_val, best_checkpoint
 
 
 if __name__ == "__main__":
@@ -82,6 +112,7 @@ if __name__ == "__main__":
             projection=projection_head,
             backbone_model_path=args.backbone_model,
             cache_path=cache_path,
+            checkpoint=find_checkpoint_lowest_val_loss(trained_path)[1],
             model_name=model_name,
             spearman_test_batch_size=args.spearman_test_batch_size,
         )
