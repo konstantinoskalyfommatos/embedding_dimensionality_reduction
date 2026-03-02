@@ -8,6 +8,7 @@ storage/evaluation_results/
 storage/evaluation_results_trained_models_bad_checkpoints/
 storage/models/
 storage/plots/
+storage/pca/
 storage/available_tasks.txt
 trainer_output
 notes.md
