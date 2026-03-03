@@ -15,7 +15,7 @@ python src/scripts/eval/eval_model.py \
     --clustering_batch_size 16 \
     --spearman_test_batch_size 5000 \
     --custom_suffix "" \
-    # --intrinsic \
+    # --intrinsic_only \
     # --skip_sts \
     # --skip_classification \
     # --skip_retrieval \
