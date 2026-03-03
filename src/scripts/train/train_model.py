@@ -218,7 +218,7 @@ def main():
 
     # Output configuration
     parser.add_argument("--custom_suffix", type=str, default=None, help="Will be added to the normal model name")
-    parser.add_argument("--resume_from_checkpoint", type=int, default=None, help="Checkpoint number to resume training from")
+    parser.add_argument("--resume_from_checkpoint", action="store_true", help="Whether to resume training from the last checkpoint in the output directory")
 
     args = parser.parse_args()
         
@@ -243,11 +243,12 @@ def main():
     
     logger.info("Creating trainable projection")
 
-    # trainable_projection = nn.Sequential(
-    #     nn.Linear(args.backbone_model_output_dim, args.backbone_model_output_dim),
-    #     nn.ReLU(),
-    #     nn.Linear(args.backbone_model_output_dim, args.target_dim)
-    # )
+    if args.resume_from_checkpoint:
+        last_checkpoint = max([
+            int(d.split("checkpoint-")[-1])
+            for d in os.listdir(output_path)
+            if d.startswith("checkpoint-")
+        ])
 
     trainable_projection = nn.Sequential(
         nn.Linear(args.backbone_model_output_dim, args.target_dim),
@@ -288,7 +289,7 @@ def main():
         lr_scheduler_type=args.lr_scheduler_type,
         warmup_ratio=args.warmup_ratio,
         resume_from_checkpoint=(
-            os.path.join(output_path, f"checkpoint-{args.resume_from_checkpoint}") 
+            os.path.join(output_path, f"checkpoint-{last_checkpoint}")
             if args.resume_from_checkpoint 
             else None
         ),
