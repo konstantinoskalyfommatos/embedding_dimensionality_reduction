@@ -308,13 +308,21 @@ def evaluate_retrieval(
     model: SentenceTransformer,
     cache_path: str,
     tasks_list: list[str] = [
-        # "MIRACLRetrievalHardNegatives",
         "ArguAna",
+
+        # "MIRACLRetrievalHardNegatives",
         "QuoraRetrievalHardNegatives",
         "HotpotQAHardNegatives",
         "DBPediaHardNegatives",
         "NQHardNegatives",
         "MSMARCOHardNegatives",
+
+        "QuoraRetrieval",
+        "HotpotQA",
+        "DBPedia",
+        "NQ",
+        "MSMARCOv2"
+
     ],
     languages: list[str] | None = None,
     batch_size: int = 6,
