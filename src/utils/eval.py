@@ -321,7 +321,7 @@ def evaluate_retrieval(
         "HotpotQA",
         "DBPedia",
         "NQ",
-        "MSMARCOv2"
+        "MSMARCO"
 
     ],
     languages: list[str] | None = None,
