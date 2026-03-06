@@ -80,11 +80,14 @@ if __name__ == "__main__":
         nn.ReLU(),
     ).to("cuda")
 
+    # TODO: Fix this messy part
+    positional_loss_factor = "1" if args.positional_loss_factor in [1, 1.0] else "0.0"
+
     model_name = (
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"{'_poslossfactor_' + str(args.positional_loss_factor) if not args.spearman else ''}"
+        f"{'_poslossfactor_' + positional_loss_factor if not args.spearman else ''}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
 
