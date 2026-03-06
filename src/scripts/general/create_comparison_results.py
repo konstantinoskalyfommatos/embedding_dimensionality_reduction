@@ -29,7 +29,7 @@ TASK_BENCHMARK_MAPPING = {
         "HotpotQA",
         "DBPedia",
         "NQ",
-        "MSMARCOv2",
+        "MSMARCO",
         
         "MIRACLRetrievalHardNegatives",
         "QuoraRetrievalHardNegatives",
