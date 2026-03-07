@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument("--backbone_model_output_dim", default=512, type=int)
     parser.add_argument("--target_dim", type=int, default=32, help="Target dimension of the distilled embeddings")
     parser.add_argument("--train_batch_size", type=int, help="Batch size used for training", default=20000)
-    parser.add_argument("--positional_loss_factor", type=float, default=1, help="factor for positional vs similarity loss")
+    parser.add_argument("--positional_loss_factor", type=int, default=1, help="factor for positional vs similarity loss")
     parser.add_argument("--skip_sts", action="store_true", help="Skip STS evaluation")
     parser.add_argument("--skip_classification", action="store_true", help="Skip classification evaluation")
     parser.add_argument("--skip_retrieval", action="store_true", help="Skip retrieval evaluation")
@@ -80,14 +80,11 @@ if __name__ == "__main__":
         nn.ReLU(),
     ).to("cuda")
 
-    # TODO: Fix this messy part
-    positional_loss_factor = "1" if args.positional_loss_factor in [1, 1.0] else "0.0"
-
     model_name = (
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"{'_poslossfactor_' + positional_loss_factor if not args.spearman else ''}"
+        f"{'_poslossfactor_' + int(args.positional_loss_factor) if not args.spearman else ''}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
 

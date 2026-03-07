@@ -47,7 +47,7 @@ def train_model(
     optimizer_params: dict[str, Any] = {'lr': 1e-2},
     weight_decay: float = 0.00,
     output_path: str = None,
-    positional_loss_factor: float = 1.0,
+    positional_loss_factor: int = 1,
     lr_scheduler_type: str = "linear",
     warmup_ratio: float = 0.0,
     resume_from_checkpoint: str = None,
@@ -194,7 +194,7 @@ def main():
                        help="Number of training epochs")
     parser.add_argument("--learning_rate", type=float, default=1e-2,
                        help="Learning rate")
-    parser.add_argument("--positional_loss_factor", type=float, default=1,
+    parser.add_argument("--positional_loss_factor", type=int, default=1,
                        help="factor for positional vs similarity loss")
     parser.add_argument("--train_batch_size", type=int, default=20000,
                        help="Batch size for training")
@@ -226,7 +226,7 @@ def main():
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"{'_poslossfactor_' + str(args.positional_loss_factor) if not args.spearman else ''}"
+        f"{'_poslossfactor_' + int(args.positional_loss_factor) if not args.spearman else ''}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
     
