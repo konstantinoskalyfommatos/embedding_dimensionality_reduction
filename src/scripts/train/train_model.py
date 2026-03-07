@@ -226,7 +226,7 @@ def main():
         f"{args.backbone_model}"
         f"_distilled_{args.target_dim}"
         f"_batch_{args.train_batch_size}"
-        f"{'_poslossfactor_' + int(args.positional_loss_factor) if not args.spearman else ''}"
+        f"{'_poslossfactor_' + str(int(args.positional_loss_factor)) if not args.spearman else ''}"
         f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
     )
     
