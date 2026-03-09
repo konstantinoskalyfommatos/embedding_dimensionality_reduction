@@ -91,7 +91,6 @@ if __name__ == "__main__":
     evaluate_mteb(
         model=custom_model,
         cache_path=cache_path,
-        model_name=model_name,
         sts_batch_size=args.sts_batch_size,
         classification_batch_size=args.classification_batch_size,
         retrieval_batch_size=args.retrieval_batch_size,
