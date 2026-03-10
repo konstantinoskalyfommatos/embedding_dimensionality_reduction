@@ -102,17 +102,13 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     df = pd.DataFrame.from_dict(all_results, orient='index')
     df.index.name = 'Model'
     
-    intrinsic_rename = {metric: f"**{metric.upper()}**" for metric in INTRINSIC_METRICS if metric in df.columns}
-    df = df.rename(columns=intrinsic_rename)
-    
     cols = []
     for task_category, benchmarks in TASK_BENCHMARK_MAPPING.items():
         # Add individual intrinsic metric columns
         if task_category == "intrinsic":
             for metric in INTRINSIC_METRICS:
-                metric_col = f"**{metric.upper()}**"
-                if metric_col in df.columns:
-                    cols.append(metric_col)
+                if metric in df.columns:
+                    cols.append(metric)
             continue
 
         # Add individual benchmark columns
@@ -127,12 +123,16 @@ def collect_results_to_df(results_dir: str) -> pd.DataFrame:
     avg_cols = [c for c in df.columns if c.startswith("**AVG_")]
     
     # Calculate overall average across all tasks
-    df["**AVG_OVERALL**"] = df[avg_cols].mean(axis=1)
+    df["**AVG_MTEB**"] = df[avg_cols].mean(axis=1)
     
-    # Reorder the dataframe columns: intrinsic metrics first, then overall avg, then category avgs, then the rest
-    intrinsic_cols = [f"**{m.upper()}**" for m in INTRINSIC_METRICS if f"**{m.upper()}**" in cols]
-    other_cols = [c for c in cols if c not in intrinsic_cols]
-    df = df[intrinsic_cols + ["**AVG_OVERALL**"] + avg_cols + other_cols]
+    # Reorder the dataframe columns
+    ordered_cols = (
+        ["**AVG_MTEB**"] + 
+        [c for c in cols if c in INTRINSIC_METRICS] + 
+        avg_cols +  # Include the category average columns
+        [c for c in cols if c not in INTRINSIC_METRICS and not c.startswith("**AVG_")]
+    )
+    df = df[ordered_cols]
     df = df.sort_index()
      
     return df
