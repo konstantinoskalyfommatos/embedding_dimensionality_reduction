@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
     parser.add_argument("--spearman_test_batch_size", type=int, default=5000, help="Batch size for intrinsic Spearman evaluation")
 
-    parser.add_argument("--intrinsic", action="store_true", help="Evaluate only on the intrinsic test set")
+    parser.add_argument("--intrinsic_only", action="store_true", help="Evaluate only on the intrinsic test set")
 
     args = parser.parse_args()
     logger.info(f"Args: {args}")
@@ -81,17 +81,17 @@ if __name__ == "__main__":
         "_pca"
     )
 
-    if args.intrinsic:
-        logger.info("Evaluating PCA projection on intrinsic test set")
-        projection_head.eval()
-        eval_intrinsic(
-            projection=projection_head,
-            backbone_model_path=args.backbone_model,
-            checkpoint=None,
-            cache_path=cache_path,
-            model_name=model_name,
-            spearman_test_batch_size=args.spearman_test_batch_size
-        )
+    logger.info("Evaluating PCA projection on intrinsic test set")
+    projection_head.eval()
+    eval_intrinsic(
+        projection=projection_head,
+        backbone_model_path=args.backbone_model,
+        checkpoint=None,
+        cache_path=cache_path,
+        model_name=model_name,
+        spearman_test_batch_size=args.spearman_test_batch_size
+    )
+    if args.intrinsic_only:
         sys.exit(0)
 
     logger.info("Evaluating PCA projection on MTEB benchmark")
