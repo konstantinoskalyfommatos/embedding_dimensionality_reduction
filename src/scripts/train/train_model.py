@@ -57,6 +57,7 @@ def train_model(
     retrieval_batch_size: int = 6,
     classification_batch_size: int = 20,
     clustering_batch_size: int = 16,
+    overwrite_cache: bool = False,
 ) -> None:
     before = time.perf_counter()
 
@@ -141,7 +142,7 @@ def train_model(
         checkpoint=best_checkpoint_num,
         cache_path=cache_path,
         model_name=custom_model_name,
-        spearman_test_batch_size=5000
+        spearman_test_batch_size=val_batch_size
     )
 
     # MTEB
@@ -166,7 +167,7 @@ def train_model(
         skip_retrieval=False,
         skip_classification=False,
         skip_clustering=False,
-        overwrite_cache=True,
+        overwrite_cache=overwrite_cache,
     )
 
     logger.info(
@@ -210,6 +211,7 @@ def main():
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
 
     parser.add_argument("--skip_eval_after_training", action="store_true", help="Whether to evaluate the model after training")
+    parser.add_argument("--overwrite_cache", action="store_true", help="Whether to overwrite cached evaluation results")
 
     parser.add_argument("--sts_batch_size", type=int, default=3000, help="Batch size for STS evaluation")
     parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
@@ -299,6 +301,7 @@ def main():
         retrieval_batch_size=args.retrieval_batch_size,
         classification_batch_size=args.classification_batch_size,
         clustering_batch_size=args.clustering_batch_size,
+        overwrite_cache=args.overwrite_cache,
     )
 
 
