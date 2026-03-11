@@ -275,9 +275,9 @@ def main():
                         help="Skip MTEB + intrinsic evaluation after training")
 
     parser.add_argument("--sts_batch_size", type=int, default=3000)
-    parser.add_argument("--retrieval_batch_size", type=int, default=8)
-    parser.add_argument("--classification_batch_size", type=int, default=30)
-    parser.add_argument("--clustering_batch_size", type=int, default=24)
+    parser.add_argument("--retrieval_batch_size", type=int, default=6)
+    parser.add_argument("--classification_batch_size", type=int, default=20)
+    parser.add_argument("--clustering_batch_size", type=int, default=16)
 
     # Output configuration
     parser.add_argument("--custom_suffix", type=str, default=None,

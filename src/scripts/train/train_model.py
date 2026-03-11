@@ -212,9 +212,9 @@ def main():
     parser.add_argument("--skip_eval_after_training", action="store_true", help="Whether to evaluate the model after training")
 
     parser.add_argument("--sts_batch_size", type=int, default=3000, help="Batch size for STS evaluation")
-    parser.add_argument("--retrieval_batch_size", type=int, default=8, help="Batch size for retrieval evaluation")
-    parser.add_argument("--classification_batch_size", type=int, default=30, help="Batch size for classification evaluation")
-    parser.add_argument("--clustering_batch_size", type=int, default=24, help="Batch size for clustering evaluation")
+    parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
+    parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
+    parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
 
     # Output configuration
     parser.add_argument("--custom_suffix", type=str, default=None, help="Will be added to the normal model name")
