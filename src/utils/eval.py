@@ -7,8 +7,16 @@ import logging
 import json
 import torchsort
 import json
+from dotenv import load_dotenv
+
+from huggingface_hub import login
 
 from utils.config import PROJECT_ROOT
+
+load_dotenv()
+
+if hf_token := os.getenv("HF_TOKEN"):
+    login(token=hf_token)
 
 
 # Set random seed for reproducibility
