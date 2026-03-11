@@ -144,6 +144,7 @@ def train_autoencoder(
     retrieval_batch_size: int = 6,
     classification_batch_size: int = 20,
     clustering_batch_size: int = 16,
+    overwrite_cache: bool = False,
 ) -> None:
     before = time.perf_counter()
 
@@ -239,7 +240,7 @@ def train_autoencoder(
         skip_retrieval=False,
         skip_classification=False,
         skip_clustering=False,
-        overwrite_cache=True,
+        overwrite_cache=overwrite_cache,
     )
 
     logger.info(
@@ -273,6 +274,8 @@ def main():
 
     parser.add_argument("--skip_eval_after_training", action="store_true",
                         help="Skip MTEB + intrinsic evaluation after training")
+    parser.add_argument("--overwrite_cache", action="store_true",
+                        help="Whether to overwrite cached evaluation results")
 
     parser.add_argument("--sts_batch_size", type=int, default=3000)
     parser.add_argument("--retrieval_batch_size", type=int, default=6)
@@ -355,6 +358,7 @@ def main():
         retrieval_batch_size=args.retrieval_batch_size,
         classification_batch_size=args.classification_batch_size,
         clustering_batch_size=args.clustering_batch_size,
+        overwrite_cache=args.overwrite_cache,
     )
 
 
