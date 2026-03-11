@@ -131,6 +131,55 @@ def spearmanr_differentiable(
         return (pred_ranks * target_ranks).sum()
 
 
+def spearmanr_differentiable_local(
+    pred: torch.Tensor, 
+    target: torch.Tensor,
+    weighted: bool = False,
+    **kw
+) -> torch.Tensor:
+    """Differentiable Spearman correlation weighted by target rank position."""
+    n = pred.shape[0]
+    m = n - 1
+    
+    # Exclude diagonal
+    mask = ~torch.eye(n, dtype=torch.bool, device=pred.device)
+    pred_offdiag = pred[mask].reshape(n, m)
+    target_offdiag = target[mask].reshape(n, m)
+    
+    # Get soft ranks of target similarities (continuous approximations)
+    target_soft_ranks = torchsort.soft_rank(target_offdiag, **kw)
+    
+    if weighted:
+        # Convert to actual rank positions by sorting the soft ranks
+        # This gives us 1,2,3,... based on the order of soft ranks
+        indices = target_soft_ranks.argsort(dim=1)
+        weights = torch.arange(1, m+1, device=pred.device).float().expand(n, -1)
+        weights = torch.gather(weights, 1, indices.argsort(dim=1))
+    else:
+        weights = torch.ones_like(target_soft_ranks)
+
+    # Get ranks of predictions
+    pred_ranks = torchsort.soft_rank(pred_offdiag, **kw)
+    
+    # Weighted mean centering
+    w_sum = weights.sum(dim=1, keepdim=True)
+    pred_mean = (weights * pred_ranks).sum(dim=1, keepdim=True) / w_sum
+    target_mean = (weights * target_soft_ranks).sum(dim=1, keepdim=True) / w_sum
+    
+    pred_centered = pred_ranks - pred_mean
+    target_centered = target_soft_ranks - target_mean
+    
+    # Weighted covariance and variances
+    cov = (weights * pred_centered * target_centered).sum(dim=1)
+    pred_var = (weights * pred_centered ** 2).sum(dim=1)
+    target_var = (weights * target_centered ** 2).sum(dim=1)
+    
+    eps = 1e-8
+    row_correlations = cov / (torch.sqrt(pred_var * target_var) + eps)
+    
+    return row_correlations.mean()
+
+
 def compute_spearman_loss(
     low_dim_embeddings: torch.Tensor,
     high_dim_embeddings: torch.Tensor,
@@ -147,9 +196,9 @@ def compute_spearman_loss(
     high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
 
     if training:
-        return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim, weighted=weighted)
+        return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted=weighted)
     with torch.no_grad():
-        return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim, weighted=weighted)
+        return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted=weighted)
 
 
 # --- Eval functions ---
@@ -161,7 +210,7 @@ def eval_intrinsic(
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
-    spearman_test_batch_size: int | None = 5000
+    spearman_test_batch_size: int | None = 20000
 ):
     results = {
         "task_name": "IntrinsicEvaluation",

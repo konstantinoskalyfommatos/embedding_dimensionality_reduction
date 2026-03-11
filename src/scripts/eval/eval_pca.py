@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
 
     parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
-    parser.add_argument("--spearman_test_batch_size", type=int, default=5000, help="Batch size for intrinsic Spearman evaluation")
+    parser.add_argument("--spearman_test_batch_size", type=int, default=20000, help="Batch size for intrinsic Spearman evaluation")
 
     parser.add_argument("--intrinsic_only", action="store_true", help="Evaluate only on the intrinsic test set")
 

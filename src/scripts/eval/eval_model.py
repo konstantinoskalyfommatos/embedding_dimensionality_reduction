@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("--retrieval_batch_size", type=int, default=6, help="Batch size for retrieval evaluation")
     parser.add_argument("--classification_batch_size", type=int, default=20, help="Batch size for classification evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
-    parser.add_argument("--spearman_test_batch_size", type=int, default=5000, help="Batch size for intrinsic Spearman evaluation")
+    parser.add_argument("--spearman_test_batch_size", type=int, default=20000, help="Batch size for intrinsic Spearman evaluation")
 
     parser.add_argument("--custom_suffix", type=str, default=None, help="Was added to the normal model name")
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
