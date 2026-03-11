@@ -98,14 +98,8 @@ def spearmanr_differentiable(
     target_ranks = torchsort.soft_rank(target, **kw)
     
     if weighted:
-        # Weight by target rank position (higher ranks get more weight)
-        m = target_ranks.size(1)
-        target_soft_ranks = target_ranks.clone()
-        
-        # Convert to actual rank positions by sorting the soft ranks
-        indices = target_soft_ranks.argsort(dim=1)
-        weights = torch.arange(1, m+1, device=pred.device).float().unsqueeze(0)
-        weights = torch.gather(weights, 1, indices.argsort(dim=1))
+        # Normalize soft ranks to use as weights
+        weights = target_ranks / target_ranks.sum(dim=1, keepdim=True)
         
         # Weighted mean centering
         w_sum = weights.sum(dim=1, keepdim=True)
@@ -150,11 +144,8 @@ def spearmanr_differentiable_local(
     target_soft_ranks = torchsort.soft_rank(target_offdiag, **kw)
     
     if weighted:
-        # Convert to actual rank positions by sorting the soft ranks
-        # This gives us 1,2,3,... based on the order of soft ranks
-        indices = target_soft_ranks.argsort(dim=1)
-        weights = torch.arange(1, m+1, device=pred.device).float().expand(n, -1)
-        weights = torch.gather(weights, 1, indices.argsort(dim=1))
+        # Normalize soft ranks to use as weights
+        weights = target_soft_ranks / target_soft_ranks.sum(dim=1, keepdim=True)
     else:
         weights = torch.ones_like(target_soft_ranks)
 
