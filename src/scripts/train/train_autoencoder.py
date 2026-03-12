@@ -204,7 +204,7 @@ def train_autoencoder(
 
     cache_path = os.path.join(
         EVALUATION_RESULTS_PATH,
-        "trained_models",
+        "autoencoders",
         backbone_model.replace("/", "__"),
     )
 
