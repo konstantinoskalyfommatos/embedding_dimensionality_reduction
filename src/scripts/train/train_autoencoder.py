@@ -292,7 +292,7 @@ def main():
 
     model_name = (
         f"{args.backbone_model}"
-        f"distilled_{args.target_dim}"
+        f"_distilled_{args.target_dim}"
         "_autoencoder"
     )
 
