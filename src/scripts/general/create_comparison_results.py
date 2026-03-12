@@ -25,17 +25,17 @@ TASK_BENCHMARK_MAPPING = {
         "SICK-R"
     ],
     "retrieval": [
-        "QuoraRetrieval",
-        "HotpotQA",
-        "DBPedia",
-        "NQ",
-        "MSMARCO",
+        # "QuoraRetrieval",
+        # "HotpotQA",
+        # "DBPedia",
+        # "NQ",
+        # "MSMARCO",
         
-        "MIRACLRetrievalHardNegatives",
-        "QuoraRetrievalHardNegatives",
-        "HotpotQAHardNegatives",
-        "DBPediaHardNegatives",
-        "NQHardNegatives",
+        # "MIRACLRetrievalHardNegatives",
+        # "QuoraRetrievalHardNegatives",
+        # "HotpotQAHardNegatives",
+        # "DBPediaHardNegatives",
+        # "NQHardNegatives",
         "MSMARCOHardNegatives",
         "ArguAna"    
     ],
