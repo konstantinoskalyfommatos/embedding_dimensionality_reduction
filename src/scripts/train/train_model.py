@@ -21,7 +21,7 @@ from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.train import SimilarityTrainer, collate_embeddings
 from utils.custom_datasets import get_precalculated_embeddings_dataset
 from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
-from utils.eval import evaluate_mteb, eval_intrinsic
+from utils.eval import evaluate_mteb, eval_intrinsic, find_checkpoint_lowest_val_loss
 
 
 # Setup logging
@@ -123,8 +123,10 @@ def train_model(
     
     # --- Evaluate using best checkpoint ---
     # Extract best checkpoint number
-    best_checkpoint_path = trainer.state.best_model_checkpoint
-    best_checkpoint_num = int(best_checkpoint_path.split("-")[-1])
+    if best_checkpoint_path := trainer.state.best_model_checkpoint:
+        best_checkpoint_num = int(best_checkpoint_path.split("-")[-1])
+    else:
+        best_checkpoint_num = find_checkpoint_lowest_val_loss(output_path)[1]
     logger.info(f"Best checkpoint: {best_checkpoint_num}")
     
     cache_path = os.path.join(
