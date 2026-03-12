@@ -21,7 +21,7 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
 
 from utils.custom_datasets import get_precalculated_embeddings_dataset
-from utils.config import TRAINED_MODELS_PATH, EVALUATION_RESULTS_PATH
+from utils.config import TRAINED_AUTOENCODERS_PATH, EVALUATION_RESULTS_PATH
 from utils.distilled_sentence_transformer import DistilledSentenceTransformer
 from utils.eval import evaluate_mteb, eval_intrinsic
 
@@ -297,7 +297,7 @@ def main():
     )
 
     output_path = os.path.join(
-        TRAINED_MODELS_PATH,
+        TRAINED_AUTOENCODERS_PATH,
         args.backbone_model.replace("/", "__"),
         model_name.replace("/", "__"),
     )
