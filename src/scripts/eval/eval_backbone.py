@@ -5,7 +5,7 @@ import logging
 import os
 from utils.config import EVALUATION_RESULTS_PATH
 
-from utils.eval import evaluate_sts, evaluate_retrieval, evaluate_classification, evaluate_clustering
+from utils.eval import evaluate_mteb
 
 
 # Set random seed for reproducibility
@@ -32,6 +32,8 @@ if __name__ == "__main__":
     parser.add_argument("--retrieval_batch_size", type=int, default=4, help="Batch size for retrieval evaluation")
     parser.add_argument("--clustering_batch_size", type=int, default=16, help="Batch size for clustering evaluation")
 
+    parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite MTEB evaluation cache results")
+
     args = parser.parse_args()
 
     model = SentenceTransformer(args.backbone_model, device="cuda", trust_remote_code=True)
@@ -39,38 +41,20 @@ if __name__ == "__main__":
 
     # Evaluate the model
     cache_path = os.path.join(EVALUATION_RESULTS_PATH, "backbone", args.backbone_model.replace("/", "__"))
-    if not args.skip_sts:
-        sts_score = evaluate_sts(
-            model=model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.sts_batch_size
-        )
-        logger.info(f"Final Spearman correlation on STS test set: {sts_score:.4f}")
 
-    if not args.skip_classification:
-        classification_score = evaluate_classification(
-            model=model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.classification_batch_size
-        )
-        logger.info(f"Final classification results: {classification_score}")
-
-    if not args.skip_retrieval:
-        retrieval_score = evaluate_retrieval(
-            model=model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.retrieval_batch_size
-        )
-        logger.info(f"Final retrieval results: {retrieval_score}")
-
-    if not args.skip_clustering:
-        clustering_score = evaluate_clustering(
-            model=model,
-            cache_path=cache_path,
-            fast_mode=args.fast_mode,
-            batch_size=args.clustering_batch_size
-        )
-        logger.info(f"Final clustering results: {clustering_score}")
+    evaluate_mteb(
+        model=model,
+        cache_path=cache_path,
+        sts_batch_size=args.sts_batch_size,
+        retrieval_batch_size=args.retrieval_batch_size,
+        classification_batch_size=args.classification_batch_size,
+        clustering_batch_size=args.clustering_batch_size,
+        skip_sts=args.skip_sts,
+        skip_classification=args.skip_classification,
+        skip_retrieval=args.skip_retrieval,
+        skip_clustering=args.skip_clustering,
+        fast_mode=args.fast_mode,
+        overwrite_cache=args.overwrite_cache,
+    )
+    logger.info("Evaluation completed.")
+    
