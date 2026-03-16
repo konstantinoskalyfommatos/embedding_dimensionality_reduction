@@ -15,9 +15,6 @@ from utils.config import PROJECT_ROOT
 
 load_dotenv()
 
-if hf_token := os.getenv("HF_TOKEN"):
-    login(token=hf_token)
-
 
 # Set random seed for reproducibility
 torch.manual_seed(42)
@@ -26,6 +23,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 logging.getLogger("ignite.engine.engine.Engine").setLevel(logging.WARNING)
+
+
+try:
+    if hf_token := os.getenv("HF_TOKEN"):
+        login(token=hf_token)
+except Exception as e:
+    logger.warning(f"Could not log in to Hugging Face Hub: {e}")
 
 
 def find_checkpoint_lowest_val_loss(trained_path: str) -> tuple[float, int]:
