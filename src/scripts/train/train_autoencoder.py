@@ -283,8 +283,6 @@ def main():
     parser.add_argument("--clustering_batch_size", type=int, default=16)
 
     # Output configuration
-    parser.add_argument("--custom_suffix", type=str, default=None,
-                        help="Optional suffix appended to the model name")
     parser.add_argument("--resume_from_checkpoint", action="store_true",
                         help="Resume training from the last checkpoint in the output directory")
 
