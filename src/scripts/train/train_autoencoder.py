@@ -278,7 +278,7 @@ def main():
                         help="Whether to overwrite cached evaluation results")
 
     parser.add_argument("--sts_batch_size", type=int, default=3000)
-    parser.add_argument("--retrieval_batch_size", type=int, default=4)
+    parser.add_argument("--retrieval_batch_size", type=int, default=6)
     parser.add_argument("--classification_batch_size", type=int, default=20)
     parser.add_argument("--clustering_batch_size", type=int, default=16)
 
