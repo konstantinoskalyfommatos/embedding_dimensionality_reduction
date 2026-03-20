@@ -42,6 +42,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--custom_suffix", type=str, default=None, help="Was added to the normal model name")
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
+    parser.add_argument("--spearman_local_or_global", type=str, default="local", choices=["local", "global"], help="Whether to compute Spearman loss using local (only pairs in the same batch) or global (all pairs in the dataset) similarities")
 
     args = parser.parse_args()
     logger.info(f"Args: {args}")
@@ -94,6 +95,7 @@ if __name__ == "__main__":
         checkpoint=find_checkpoint_lowest_val_loss(trained_path)[1],
         model_name=model_name,
         spearman_test_batch_size=args.spearman_test_batch_size,
+        spearman_local_or_global=args.spearman_local_or_global,
     )
     if args.intrinsic_only:
         exit()

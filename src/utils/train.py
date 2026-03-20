@@ -22,6 +22,7 @@ class SimilarityTrainer(Trainer):
         *args,
         target_dim: int,
         spearman: bool,
+        spearman_local_or_global: str = "local",
         positional_loss_factor: float = 1.0,
         weighted_loss: bool = False,
         **kwargs
@@ -30,7 +31,9 @@ class SimilarityTrainer(Trainer):
         self.positional_loss_factor = positional_loss_factor
         self.target_dim = target_dim
         self.spearman = spearman
+        self.spearman_local_or_global = spearman_local_or_global
         self.weighted_loss = weighted_loss
+
 
     def compute_loss(self, model, inputs, *args, **kwargs) -> torch.Tensor:
         """Compute the combined loss for distillation."""
@@ -41,6 +44,7 @@ class SimilarityTrainer(Trainer):
             return compute_spearman_loss(
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings,
+                local_or_global=self.spearman_local_or_global,
                 training=True,
                 weighted=self.weighted_loss,
             )
@@ -96,6 +100,7 @@ class SimilarityTrainer(Trainer):
                 loss = compute_spearman_loss(
                     low_dim_embeddings=low_dim_embeddings,
                     high_dim_embeddings=high_dim_embeddings,
+                    local_or_global=self.spearman_local_or_global,
                     training=False,
                     weighted=self.weighted_loss,
                 )

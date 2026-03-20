@@ -42,6 +42,7 @@ def train_model(
     val_batch_size: int,
     backbone_model: str,
     spearman: bool,
+    spearman_local_or_global: str,
     epochs: int = 10,
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
     optimizer_params: dict[str, Any] = {'lr': 1e-2},
@@ -96,6 +97,7 @@ def train_model(
         eval_dataset=val_dataset,
         target_dim=target_dim,
         spearman=spearman,
+        spearman_local_or_global=spearman_local_or_global,
         positional_loss_factor=positional_loss_factor,
         weighted_loss=weighted_loss,
         optimizers=(optimizer, None),
@@ -211,6 +213,7 @@ def main():
                        help="Warmup ratio for learning rate scheduler")
     parser.add_argument("--weighted_loss", action="store_true")
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
+    parser.add_argument("--spearman_local_or_global", type=str, default="local", choices=["local", "global"], help="Whether to compute Spearman loss using local (only pairs in the same batch) or global (all pairs in the dataset) similarities")
 
     parser.add_argument("--skip_eval_after_training", action="store_true", help="Whether to evaluate the model after training")
     parser.add_argument("--overwrite_cache", action="store_true", help="Whether to overwrite cached evaluation results")
@@ -293,6 +296,7 @@ def main():
         val_batch_size=args.val_batch_size,
         backbone_model=args.backbone_model,
         spearman=args.spearman,
+        spearman_local_or_global=args.spearman_local_or_global,
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,
         weight_decay=args.weight_decay,

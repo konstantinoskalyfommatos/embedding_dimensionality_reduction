@@ -215,6 +215,7 @@ def spearmanr_differentiable_local(
 def compute_spearman_loss(
     low_dim_embeddings: torch.Tensor,
     high_dim_embeddings: torch.Tensor,
+    local_or_global: str = "local",
     training: bool = False,
     weighted: bool = False,
 ) -> torch.Tensor | float:
@@ -227,10 +228,11 @@ def compute_spearman_loss(
     low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
     high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
 
-    if training:
-        return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted=weighted)
-    with torch.no_grad():
-        return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted=weighted)
+    with torch.set_grad_enabled(training):
+        if local_or_global == "local":
+            return 1.0 - spearmanr_differentiable_local(low_dim_sim, high_dim_sim, weighted=weighted)
+        else:
+            return 1.0 - spearmanr_differentiable(low_dim_sim, high_dim_sim, weighted=weighted)
 
 
 # --- Eval functions ---
@@ -242,7 +244,8 @@ def eval_intrinsic(
     checkpoint: str | None = None,
     cache_path: str | None = None,
     model_name: str | None = None,
-    spearman_test_batch_size: int | None = 20000
+    spearman_test_batch_size: int | None = 20000,
+    spearman_local_or_global: str = "local"
 ):
     results = {
         "task_name": "IntrinsicEvaluation",
@@ -277,6 +280,7 @@ def eval_intrinsic(
         high_dim_embeddings[:spearman_test_batch_size], 
         training=False,
         weighted=False,
+        local_or_global=spearman_local_or_global
     )
     results["spearman_loss"] = spearman_loss.item()
 
@@ -285,6 +289,7 @@ def eval_intrinsic(
         high_dim_embeddings[:spearman_test_batch_size], 
         training=False,
         weighted=True,
+        local_or_global=spearman_local_or_global
     )
     results["spearman_loss_weighted"] = spearman_loss_weighted.item()
 
