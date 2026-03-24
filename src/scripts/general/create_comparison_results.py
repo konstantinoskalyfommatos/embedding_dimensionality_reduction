@@ -31,12 +31,12 @@ TASK_BENCHMARK_MAPPING = {
         "NQ",
         "MSMARCO",
         
-        "MIRACLRetrievalHardNegatives",
-        "QuoraRetrievalHardNegatives",
-        "HotpotQAHardNegatives",
-        "DBPediaHardNegatives",
-        "NQHardNegatives",
-        "MSMARCOHardNegatives",
+        # "QuoraRetrievalHardNegatives",
+        # "HotpotQAHardNegatives",
+        # "DBPediaHardNegatives",
+        # "NQHardNegatives",
+        # "MSMARCOHardNegatives",
+
         "ArguAna"    
     ],
     "classification": [
