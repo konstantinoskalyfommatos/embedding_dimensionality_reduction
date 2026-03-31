@@ -34,7 +34,8 @@ class CustomDataset(Dataset):
 
 def calculate_embeddings(
     model: SentenceTransformer, 
-    dataloader: DataLoader, 
+    dataloader: DataLoader,
+    **kwargs
 ) -> torch.Tensor:
     all_embeddings = []
     with torch.inference_mode():
@@ -45,6 +46,7 @@ def calculate_embeddings(
                 convert_to_tensor=True,
                 show_progress_bar=False,
                 batch_size=len(batch),
+                **kwargs
             ).cpu()
             all_embeddings.append(embeddings)
             
@@ -128,7 +130,13 @@ def precalculate_train_embeddings(
                 pin_memory=True,
             )
 
-            embeddings = calculate_embeddings(model, dataloader)
+            model_to_kwargs = {
+                "Qwen/Qwen3-Embedding-0.6B": {
+                    "prompt": None
+                }
+            }
+
+            embeddings = calculate_embeddings(model, dataloader, **model_to_kwargs.get(model_name, {}))
 
             os.makedirs(os.path.dirname(split_output_path), exist_ok=True)
             torch.save(embeddings, split_output_path)
