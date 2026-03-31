@@ -121,6 +121,64 @@ def compute_angular_loss(
     return (weights * (low_dim_sim_upper - high_dim_sim_upper).pow(2)).mean()
 
 
+# --- Pearson's correlation ---
+def pearsonr(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    weighted: bool = False,
+    **kw
+):
+    n = target.size(0)
+    triu_indices = torch.triu_indices(n, n, offset=1, device=target.device)
+    pred = pred[triu_indices[0], triu_indices[1]]
+    target = target[triu_indices[0], triu_indices[1]]
+    pred = pred.unsqueeze(0)
+    target = target.unsqueeze(0)
+
+    if weighted:
+        weights = target / target.sum(dim=1, keepdim=True)
+        
+        w_sum = weights.sum(dim=1, keepdim=True)
+        pred_mean = (weights * pred).sum(dim=1, keepdim=True) / w_sum
+        target_mean = (weights * target).sum(dim=1, keepdim=True) / w_sum
+        
+        pred_centered = pred - pred_mean
+        target_centered = target - target_mean
+        
+        cov = (weights * pred_centered * target_centered).sum(dim=1)
+        pred_var = (weights * pred_centered ** 2).sum(dim=1)
+        target_var = (weights * target_centered ** 2).sum(dim=1)
+        
+        eps = 1e-8
+        correlation = cov / (torch.sqrt(pred_var * target_var) + eps)
+        return correlation.mean()
+    else:
+        pred = pred - pred.mean()
+        pred = pred / pred.norm()
+        target = target - target.mean()
+        target = target / target.norm()
+        return (pred * target).sum()
+
+
+def compute_pearson_loss(
+    low_dim_embeddings: torch.Tensor,
+    high_dim_embeddings: torch.Tensor,
+    training: bool = False,
+    weighted: bool = False
+) -> torch.Tensor:
+    """Compute Pearson correlation loss between low and high dimensional embeddings."""
+    # Normalize embeddings
+    low_dim_embeddings = torch.nn.functional.normalize(low_dim_embeddings, p=2, dim=1)
+    high_dim_embeddings = torch.nn.functional.normalize(high_dim_embeddings, p=2, dim=1)
+    
+    # Compute similarity matrices
+    low_dim_sim = torch.mm(low_dim_embeddings, low_dim_embeddings.t())
+    high_dim_sim = torch.mm(high_dim_embeddings, high_dim_embeddings.t())
+
+    with torch.set_grad_enabled(training):
+        return 1.0 - pearsonr(low_dim_sim, high_dim_sim, weighted=weighted)
+
+
 # --- Spearman's rank ---
 def spearmanr_differentiable(
     pred: torch.Tensor,
@@ -397,11 +455,11 @@ def evaluate_retrieval(
         "ArguAna",
 
         # "MIRACLRetrievalHardNegatives",
-        "QuoraRetrievalHardNegatives",
-        "HotpotQAHardNegatives",
-        "DBPediaHardNegatives",
-        "NQHardNegatives",
-        "MSMARCOHardNegatives",
+        # "QuoraRetrievalHardNegatives",
+        # "HotpotQAHardNegatives",
+        # "DBPediaHardNegatives",
+        # "NQHardNegatives",
+        # "MSMARCOHardNegatives",
 
         "QuoraRetrieval",
         "HotpotQA",

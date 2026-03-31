@@ -3,7 +3,7 @@ import logging
 from transformers import Trainer
 from torch.utils.data import DataLoader
 
-from utils.eval import compute_positional_loss, compute_angular_loss, compute_spearman_loss
+from utils.eval import compute_positional_loss, compute_angular_loss, compute_spearman_loss, compute_pearson_loss
 
 
 torch.manual_seed(42)
@@ -22,6 +22,7 @@ class SimilarityTrainer(Trainer):
         *args,
         target_dim: int,
         spearman: bool,
+        pearson: bool,
         spearman_local_or_global: str = "local",
         positional_loss_factor: float = 1.0,
         weighted_loss: bool = False,
@@ -31,6 +32,7 @@ class SimilarityTrainer(Trainer):
         self.positional_loss_factor = positional_loss_factor
         self.target_dim = target_dim
         self.spearman = spearman
+        self.pearson = pearson
         self.spearman_local_or_global = spearman_local_or_global
         self.weighted_loss = weighted_loss
 
@@ -45,6 +47,13 @@ class SimilarityTrainer(Trainer):
                 low_dim_embeddings=low_dim_embeddings,
                 high_dim_embeddings=high_dim_embeddings,
                 local_or_global=self.spearman_local_or_global,
+                training=True,
+                weighted=self.weighted_loss,
+            )
+        elif self.pearson:
+            return compute_pearson_loss(
+                low_dim_embeddings=low_dim_embeddings,
+                high_dim_embeddings=high_dim_embeddings,
                 training=True,
                 weighted=self.weighted_loss,
             )
@@ -101,6 +110,13 @@ class SimilarityTrainer(Trainer):
                     low_dim_embeddings=low_dim_embeddings,
                     high_dim_embeddings=high_dim_embeddings,
                     local_or_global=self.spearman_local_or_global,
+                    training=False,
+                    weighted=self.weighted_loss,
+                )
+            elif self.pearson:
+                loss = compute_pearson_loss(
+                    low_dim_embeddings=low_dim_embeddings,
+                    high_dim_embeddings=high_dim_embeddings,
                     training=False,
                     weighted=self.weighted_loss,
                 )

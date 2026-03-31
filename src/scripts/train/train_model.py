@@ -42,6 +42,7 @@ def train_model(
     val_batch_size: int,
     backbone_model: str,
     spearman: bool,
+    pearson: bool,
     spearman_local_or_global: str,
     epochs: int = 10,
     optimizer_class: torch.optim.Optimizer = torch.optim.AdamW,
@@ -97,6 +98,7 @@ def train_model(
         eval_dataset=val_dataset,
         target_dim=target_dim,
         spearman=spearman,
+        pearson=pearson,
         spearman_local_or_global=spearman_local_or_global,
         positional_loss_factor=positional_loss_factor,
         weighted_loss=weighted_loss,
@@ -213,6 +215,7 @@ def main():
                        help="Warmup ratio for learning rate scheduler")
     parser.add_argument("--weighted_loss", action="store_true")
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
+    parser.add_argument("--pearson", action="store_true", help="Differentiable Pearson correlation loss")
     parser.add_argument("--spearman_local_or_global", type=str, default="local", choices=["local", "global"], help="Whether to compute Spearman loss using local (only pairs in the same batch) or global (all pairs in the dataset) similarities")
 
     parser.add_argument("--skip_eval_after_training", action="store_true", help="Whether to evaluate the model after training")
@@ -235,6 +238,14 @@ def main():
             f"_distilled_{args.target_dim}"
             f"_batch_{args.train_batch_size}"
             "_spearman"
+            f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
+        )
+    elif args.pearson:
+        model_name = (
+            f"{args.backbone_model}"
+            f"_distilled_{args.target_dim}"
+            f"_batch_{args.train_batch_size}"
+            "_pearson"
             f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
         )
     else:
@@ -296,6 +307,7 @@ def main():
         val_batch_size=args.val_batch_size,
         backbone_model=args.backbone_model,
         spearman=args.spearman,
+        pearson=args.pearson,
         spearman_local_or_global=args.spearman_local_or_global,
         epochs=args.epochs,
         optimizer_class=torch.optim.AdamW,

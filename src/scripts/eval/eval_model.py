@@ -42,6 +42,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--custom_suffix", type=str, default=None, help="Was added to the normal model name")
     parser.add_argument("--spearman", action="store_true", help="Differentiable Spearman correlation loss")
+    parser.add_argument("--pearson", action="store_true", help="Differentiable Pearson correlation loss")
     parser.add_argument("--spearman_local_or_global", type=str, default="local", choices=["local", "global"], help="Whether to compute Spearman loss using local (only pairs in the same batch) or global (all pairs in the dataset) similarities")
 
     args = parser.parse_args()
@@ -58,6 +59,14 @@ if __name__ == "__main__":
             f"_distilled_{args.target_dim}"
             f"_batch_{args.train_batch_size}"
             "_spearman"
+            f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
+        )
+    elif args.pearson:
+        model_name = (
+            f"{args.backbone_model}"
+            f"_distilled_{args.target_dim}"
+            f"_batch_{args.train_batch_size}"
+            "_pearson"
             f"{'_' + args.custom_suffix if args.custom_suffix else ''}"
         )
     else:
