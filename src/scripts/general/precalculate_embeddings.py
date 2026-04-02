@@ -152,11 +152,17 @@ def precalculate_train_embeddings(
         split_output_path = os.path.join(output_base_path, f"train_embeddings_{i}.pt")
         embeddings = torch.load(split_output_path)
         all_embeddings.append(embeddings)
-        os.remove(split_output_path)  # Clean up intermediate file
     
     all_embeddings = torch.cat(all_embeddings, dim=0)
     final_output_path = os.path.join(output_base_path, "train_embeddings.pt")
     torch.save(all_embeddings, final_output_path)
+
+    # Delete after succesful save
+    logger.info("Deleting intermediate embeddings")
+    all_embeddings = []
+    for i in range(encode_every, total_seen + 1, encode_every):
+        split_output_path = os.path.join(output_base_path, f"train_embeddings_{i}.pt")
+        os.remove(split_output_path)
 
     logger.info("Finished precalculating train embeddings")
 
