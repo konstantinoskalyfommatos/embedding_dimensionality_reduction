@@ -32,6 +32,13 @@ class CustomDataset(Dataset):
         return self.texts[idx]
     
 
+MODEL_TO_KWARGS = {
+    "Qwen/Qwen3-Embedding-0.6B": {
+        "prompt": None
+    }
+}
+
+
 def calculate_embeddings(
     model: SentenceTransformer, 
     dataloader: DataLoader,
@@ -130,13 +137,11 @@ def precalculate_train_embeddings(
                 pin_memory=True,
             )
 
-            model_to_kwargs = {
-                "Qwen/Qwen3-Embedding-0.6B": {
-                    "prompt": None
-                }
-            }
-
-            embeddings = calculate_embeddings(model, dataloader, **model_to_kwargs.get(model_name, {}))
+            embeddings = calculate_embeddings(
+                model, 
+                dataloader, 
+                **MODEL_TO_KWARGS.get(model_name, {})
+            )
 
             os.makedirs(os.path.dirname(split_output_path), exist_ok=True)
             torch.save(embeddings, split_output_path)
@@ -221,7 +226,11 @@ def precalculate_val_test_embeddings(
         dataset = CustomDataset(examples)
         dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=True)
 
-        embeddings = calculate_embeddings(model, dataloader)
+        embeddings = calculate_embeddings(
+            model, 
+            dataloader, 
+            **MODEL_TO_KWARGS.get(model_name, {})
+        )
 
         split_output_path = os.path.join(output_base_path, f"{split}_embeddings.pt")
         os.makedirs(os.path.dirname(split_output_path), exist_ok=True)
